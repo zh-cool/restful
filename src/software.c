@@ -205,7 +205,7 @@ int post_software_server(int client, char *ibuf, int len, char *subtok)
 		return response_state(client, NO_SERVICE, err_msg[NO_SERVICE]);
 	}
 
-	ezxml_t root = NULL, install=NULL, remove=NULL, active=NULL, act=NULL, name=NULL;
+	ezxml_t root = NULL, active=NULL, act=NULL, name=NULL;
 
 	root = ezxml_parse_str(ibuf, len);
 	if(!root){

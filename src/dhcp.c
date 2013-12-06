@@ -23,6 +23,7 @@
 #include <netinet/in.h>
 #include <time.h>
 #include <errno.h>
+#include <arpa/inet.h>
 #include "xmlerror.h"
 #include "service.h"
 #include "util.h"
@@ -48,7 +49,7 @@ static int get_dhcp_clients(int client)
 
 	pos = strlen(xml);
 	while(fgets(line, sizeof(line), fp)){
-		sscanf(line, "%d %s %s %s", &time, mac, ip, name);
+		sscanf(line, "%d %s %s %s", (int*)&time, mac, ip, name);
 		len = snprintf(xml+pos, sizeof(xml)-pos, cfmt, mac, ip, name, ctime(&time));
 		pos += len;
 	}
@@ -64,6 +65,7 @@ static int get_dhcp_config(int client)
 		     "<DHCP>"
 		     	"<ENABLED>%d</ENABLED>"
 			"%s"
+			"%s"
 		     "</DHCP>";
 
 	char *sfmt = "<STATIC>"
@@ -71,11 +73,17 @@ static int get_dhcp_config(int client)
 			"<IP>%s</IP>"
 		     "</STATIC>";
 
+	char *lfmt = "<LEASETIME>%d</LEASETIME>"
+		     "<ADDRPOOL>"
+		     	"<START>%s</START>"
+			"<END>%s</END>"
+		     "</ADDRPOOL>";
+
 	char xml[XMLLEN] = {0};
 	char slist[XMLLEN] = {0}, host[128] = {0};
 	char mac[32] = {0};
 	char ip[INET_ADDRSTRLEN+1] = {0};
-	int enabled=0, length=0, pos=0, idx=0;
+	int enabled=0, length=0, pos=0, idx=0, ltime=0, start=0, limit=0;
 
 	pos = 0;
 	while(1){
@@ -103,7 +111,37 @@ static int get_dhcp_config(int client)
 		enabled = 0;
 	}
 
-	snprintf(xml, sizeof(xml), dfmt, enabled, slist);
+	//Leasetime
+	uci_get_cfg("dhcp.lan.leasetime", xml, sizeof(xml));
+	ltime = atoi(xml);
+
+	//addr pool
+	uint32_t nmask, nip, naddr;
+	char sip[INET_ADDRSTRLEN+1] = {0};
+	char eip[INET_ADDRSTRLEN+1] = {0};
+	char lpool[XMLLEN] = {0};
+
+	uci_get_cfg("network.lan.ipaddr", ip, sizeof(ip));
+	inet_pton(AF_INET, ip, &nip);
+
+	uci_get_cfg("network.lan.netmask", ip, sizeof(ip));
+	inet_pton(AF_INET, ip, &nmask);
+
+	start = atoi(uci_get_cfg("dhcp.lan.start", xml, sizeof(xml)));
+	limit = atoi(uci_get_cfg("dhcp.lan.limit", xml, sizeof(xml)));
+	printf("%d %d\n", start, limit);
+
+	naddr = (ntohl(nmask)&ntohl(nip)) + start;
+	naddr = htonl(naddr);
+	inet_ntop(AF_INET, &naddr, sip, INET_ADDRSTRLEN+1);
+
+	naddr = (ntohl(nmask)&ntohl(nip)) + start+limit;
+	naddr = htonl(naddr);
+	inet_ntop(AF_INET, &naddr, eip, INET_ADDRSTRLEN+1);
+
+	snprintf(lpool, sizeof(lpool), lfmt, ltime, sip, eip);
+
+	snprintf(xml, sizeof(xml), dfmt, enabled, slist, lpool);
 	write(client, xml, strlen(xml));
 	return 0;
 }
@@ -133,6 +171,64 @@ int check_static_list(ezxml_t slist)
 			return 1;
 		}
 	}
+	return 0;
+}
+
+static int check_addrpool(ezxml_t pool)
+{
+	char ip[INET_ADDRSTRLEN+1]={0}, netmask[INET_ADDRSTRLEN+1]={0};
+	int nip=0, nmask=0, nstart=0, nend=0;
+	
+	ezxml_t start=ezxml_child(pool, "START");
+	ezxml_t end = ezxml_child(pool, "END");
+
+	if( !(start&&end) && (start||end) ){
+		return 1;
+	}
+
+	if(!start && !end){
+		return 0;
+	}
+	
+	inet_pton(AF_INET, start->txt, &nstart);
+	inet_pton(AF_INET, end->txt, &nend);
+	nstart = ntohl(nstart);
+	nend = ntohl(nend);
+
+	uci_get_cfg("network.lan.ipaddr", ip, sizeof(ip));
+	uci_get_cfg("network.lan.netmask", netmask, sizeof(netmask));
+	inet_pton(AF_INET, ip, &nip);
+	inet_pton(AF_INET, netmask, &nmask);
+	nip = ntohl(nip);
+	nmask = ntohl(nmask);
+
+	if( ((nip&nmask)==(nstart&nmask)) &&
+			((nip&nmask)==(nend&nmask))){
+		return 0;
+	}
+
+	return 1;
+}
+
+static int calculate_addrpool(ezxml_t pool, int *offset, int *limit)
+{
+	char ip[INET_ADDRSTRLEN+1]={0};
+	int nip=0, nstart=0, nend=0;
+
+	ezxml_t start=ezxml_child(pool, "START");
+	ezxml_t end = ezxml_child(pool, "END");
+
+	inet_pton(AF_INET, start->txt, &nstart);
+	inet_pton(AF_INET, end->txt, &nend);
+	nstart = ntohl(nstart);
+	nend = ntohl(nend);
+
+	uci_get_cfg("network.lan.ipaddr", ip, sizeof(ip));
+	inet_pton(AF_INET, ip, &nip);
+	nip = ntohl(nip);
+
+	*offset = nstart-nip;
+	*limit = nend - nstart;
 	return 0;
 }
 
@@ -205,6 +301,24 @@ int post_dhcp_server(int client, char *ibuf, int len, char *torken)
 			uci_set_cfg("dhcp.@host[-1].ip", ip->txt);
 		}
 		changed = 1;
+	}
+
+	//leasetime
+	ezxml_t ltime = NULL;
+	ltime = ezxml_child(root, "LEASETIME");
+	if(ltime && ltime->txt[0]){
+		uci_set_cfg("dhcp.lan.leasetime", ltime->txt);
+		changed = 1;
+	}
+	//addr pool
+	ezxml_t addrpool = NULL;
+	addrpool = ezxml_child(root, "ADDRPOOL");
+	if(addrpool){
+		int offset=0, limit=0;
+		if(check_addrpool(addrpool)){
+			return response_state(client, FORMAT_ERR, "Invalid address pool");
+		}
+		calculate_addrpool(addrpool, &offset, &limit);
 	}
 
 	if(changed){
