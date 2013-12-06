@@ -189,7 +189,6 @@ static int get_wireless_channel(int client)
 					e->restricted ? " [restricted]" : "");
 			pos += wlen;
 		}
-		iwinfo_finish();
 	}
 
 	snprintf(xml, sizeof(xml), cfmt, channel[0], channel[1]);
@@ -254,7 +253,6 @@ static int get_wireless_txpower(int client)
 					iwinfo_dbm2mw(e->dbm + off));
 			pos += wlen;
 		}
-		iwinfo_finish();
 	}
 
 	snprintf(xml, sizeof(xml), cfmt, txpower[0], txpower[1]);
@@ -317,7 +315,6 @@ static int get_wireless_country(int client)
 				pos += wlen;
 			}
 		}
-		iwinfo_finish();
 	}
 
 	snprintf(xml, sizeof(xml), cfmt, country[0], country[1]);
@@ -394,7 +391,6 @@ static int get_assoc_server(int client)
 			pos += wlen;
 
 		}
-		iwinfo_finish();
 	}
 	
 	if(ptbl){
