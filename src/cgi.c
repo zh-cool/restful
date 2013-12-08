@@ -196,6 +196,7 @@ int main(int argc, char **argv)
 			response_state(ret);
 		}else{
 			printf("%s", outbuf);
+			fprintf(fp, "recive:%s\n", outbuf);
 		}
 
 	}else{

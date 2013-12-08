@@ -413,8 +413,6 @@ int get_wireless_server(int client, char *ibuf, int len, char *torken)
 					"<BAND>%s</BAND>"
 					"<DISABLE>%s</DISABLE>"
 					"<SSID>%s</SSID>"
-					"<CHANNEL>%s</CHANNEL>"
-					"<TXPOWER>%s</TXPOWER>"
 					"<SECURITY>%s</SECURITY>"
 				"</BASE>"
 				"<ADVANCE>"
@@ -422,6 +420,13 @@ int get_wireless_server(int client, char *ibuf, int len, char *torken)
 					"<HTMODE>%s</HTMODE>"
 					"<COUNTRY>%s</COUNTRY>"
 					"<RTS_CTS>%s</RTS_CTS>"
+					"<CHANNEL>"
+						"<CH>%d</CH>"
+						"<MODE>%s</MODE>"
+					"</CHANNEL>"
+					"<TXPOWER>%s</TXPOWER>"
+					"<HIDESSID>%s</HIDESSID>"
+					"<WDS>%s</WDS"
 				"</ADVANCE>"
 			"</CONFIG>";
 
@@ -436,6 +441,8 @@ int get_wireless_server(int client, char *ibuf, int len, char *torken)
 		       "<CIPHER>%s</CIPHER>"
 		       "<KEY>%s</KEY>";
 
+	char *ifname[] = {"wlan0", "wlan1"};
+	const struct iwinfo_ops *iw = NULL;
 	char xml[XMLLEN*2] = {0};
 	char config[2][XMLLEN] = {{0}, {0}};
 	int i;
@@ -467,19 +474,31 @@ int get_wireless_server(int client, char *ibuf, int len, char *torken)
 	}
 
 	for(i=0; i<2; i++){
-		char band[4], disable[2], ssid[SSID_MAX_SIZE], channel[4], txpower[4], mode[16], htmode[8], country[8], rts[8]; 
-		char encry[32], security[XMLLEN];
+		char band[4]={0}, disable[2]={0}, ssid[SSID_MAX_SIZE]={0}, channel[8]={0}, txpower[4]={0}, mode[16]={0}, htmode[8]={0}, country[8]={0}, rts[8]={0}, hssid[4]={0};
+		char encry[32], security[XMLLEN], wds[4]={0};
+		int ch=0;
+
+		iw = iwinfo_backend(ifname[i]);
+		if(!iw) continue;
 		//Base 
 		snprintf(band, sizeof(band), "%s", i==0 ? "2G" : "5G");
 		snprintf(disable, sizeof(disable), "%s",	uci_get_cfg(RADIO(i, disabled), xml, sizeof(xml)));
 		snprintf(ssid, sizeof(ssid), "%s", 		uci_get_cfg(IFACE(i, ssid), xml, sizeof(xml)));
-		snprintf(channel, sizeof(channel), "%s", 	uci_get_cfg(RADIO(i, channel), xml, sizeof(xml)));
-		snprintf(txpower, sizeof(txpower), "%s",	uci_get_cfg(RADIO(i, txpower), xml, sizeof(xml)));
 		snprintf(country, sizeof(country), "%s", 	uci_get_cfg(RADIO(i, country), xml, sizeof(xml)));
 		//Advance
-		snprintf(mode, sizeof(mode), "%s", uci_get_cfg(RADIO(i, hwmode), xml, sizeof(xml)));
-		snprintf(htmode, sizeof(htmode), "%s", uci_get_cfg(RADIO(i, htmode), xml, sizeof(xml)));
-		snprintf(rts,	sizeof(rts), "%s", uci_get_cfg(RADIO(i, rts), xml, sizeof(xml)));
+		snprintf(mode, sizeof(mode), "%s", 	uci_get_cfg(RADIO(i, hwmode), xml, sizeof(xml)));
+		snprintf(htmode, sizeof(htmode), "%s", 	uci_get_cfg(RADIO(i, htmode), xml, sizeof(xml)));
+		snprintf(rts,	sizeof(rts), "%s", 	uci_get_cfg(RADIO(i, rts), xml, sizeof(xml)));
+		snprintf(channel, sizeof(channel), "%s",uci_get_cfg(RADIO(i, channel), xml, sizeof(xml)));
+		if(!strcmp(channel, "auto")){
+			if(iw) iw->channel(ifname[i], &ch);
+		}else{
+			ch = atoi(channel);
+			strcpy(channel, "Manual");
+		}
+		snprintf(txpower, sizeof(txpower), "%s",uci_get_cfg(RADIO(i, txpower), xml, sizeof(xml)));
+		snprintf(hssid, sizeof(hssid), "%s",	uci_get_cfg(IFACE(i, hidden), xml, sizeof(xml)));
+		snprintf(wds, sizeof(wds), "%s",	uci_get_cfg(IFACE(i, wds), xml, sizeof(xml)));
 		//Sec
 		snprintf(encry, sizeof(encry), "%s", uci_get_cfg(IFACE(i, encryption), xml, sizeof(xml)));
 		if(!strncmp(encry, "none", sizeof(encry)) && (strlen(encry)==strlen("none"))){
@@ -521,7 +540,7 @@ int get_wireless_server(int client, char *ibuf, int len, char *torken)
 
 			snprintf(security, sizeof(security), wpafmt, name, cipher, key);
 		}
-		snprintf(config[i], sizeof(config[i]), cfmt, band, disable, ssid, channel, txpower, security, mode, htmode, country, rts);
+		snprintf(config[i], sizeof(config[i]), cfmt, band, disable, ssid, security, mode, htmode, country, rts, ch, channel, txpower, hssid, wds);
 		printf("\nconfig %s\n", config[i]);
 	}
 	snprintf(xml, sizeof(xml), wfmt, config[0], config[1]);
@@ -615,8 +634,8 @@ static int check_base_arg(ezxml_t base)
 	band	 = ezxml_child(base, "BAND");
 	disable  = ezxml_child(base, "DISABLE");
 	ssid     = ezxml_child(base, "SSID");
-	channel	 = ezxml_child(base, "CHANNEL");
-	txpower  = ezxml_child(base, "TXPOWER");
+	//channel	 = ezxml_child(base, "CHANNEL");
+	//txpower  = ezxml_child(base, "TXPOWER");
 
 	if(!security || !band || !disable || !ssid || !channel || !txpower){
 		return 1;
@@ -635,11 +654,6 @@ static int check_base_arg(ezxml_t base)
 	if(!disable->txt[0] ||
 	   (1!=strlen(disable->txt))||
 	   ((*disable->txt!='0') && (*disable->txt!='1'))){
-		return 1;
-	}
-
-	if(!ssid->txt[0] ||
-	   strlen(ssid->txt)>32){
 		return 1;
 	}
 
@@ -712,35 +726,40 @@ static int set_security_arg(ezxml_t security, int BG)
 
 static int set_base_arg(ezxml_t base, int BG)
 {	
-	ezxml_t security=NULL, disable=NULL, ssid=NULL, channel=NULL, txpower=NULL;
+	ezxml_t security=NULL, disable=NULL, txpower=NULL;
 
 	security = ezxml_child(base, "SECURITY");
 	disable  = ezxml_child(base, "DISABLE");
 	ssid     = ezxml_child(base, "SSID");
-	channel	 = ezxml_child(base, "CHANNEL");
-	txpower  = ezxml_child(base, "TXPOWER");
 
 	uci_set_cfg(RADIO(BG, disable), disable->txt);
 	uci_set_cfg(IFACE(BG, ssid), ssid->txt);
-	uci_set_cfg(RADIO(BG, channel), channel->txt);
-	uci_set_cfg(RADIO(BG, txpower), txpower->txt);
 	set_security_arg(security, BG);
 	return 0;
 }
 
 static int set_advance_arg(ezxml_t advance, int BG)
 {
-	ezxml_t mode=NULL, htmode=NULL, rts=NULL, country=NULL;
+	ezxml_t mode=NULL, htmode=NULL, rts=NULL, ssid=NULL, channel=NULL, country=NULL, hidden=NULL;
 
 	mode   = ezxml_child(advance, "MODE");
 	htmode = ezxml_child(advance, "HTMODE");
 	rts    = ezxml_child(advance, "RTS_CTS");
 	country = ezxml_child(advance, "COUNTRY");
+	channel	 = ezxml_child(advance, "CHANNEL");
+	txpower  = ezxml_child(advance, "TXPOWER");
+	hidden = ezxml_child(advance, "HIDESSID");
+	wds = ezxml_child(advance, "WDS");
+
 
 	uci_set_cfg(RADIO(BG, hwmode), mode->txt);
 	uci_set_cfg(RADIO(BG, htmode), htmode->txt);
 	uci_set_cfg(RADIO(BG, rts), rts->txt);
 	uci_set_cfg(RADIO(BG, country), country->txt);
+	uci_set_cfg(RADIO(BG, channel), channel->txt);
+	uci_set_cfg(RADIO(BG, txpower), txpower->txt);
+	uci set_cfg(IFACE(BG, hidden), hidden->txt);
+	uci_set_cfg(IFACE(BG, wds), hidden->txt);
 	return 0;
 }
 

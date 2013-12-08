@@ -51,6 +51,11 @@ char* get_wan_ip(char *ip, int len)
 	FILE *fp = popen(". /lib/functions/network.sh; network_get_ipaddr ip wan; echo $ip", "r");
 	fgets(ip, len, fp);
 	pclose(fp);
+
+	len = strlen(ip);
+	if(ip[len-1]=='\n'){
+		ip[len-1] = 0;
+	}
 	return ip;	
 }
 
@@ -59,6 +64,11 @@ char* get_wan_gateway(char *gateway, int len)
 	FILE *fp = popen(". /lib/functions/network.sh; network_get_gateway ip wan; echo $ip", "r");
 	fgets(gateway, len, fp);
 	pclose(fp);
+	
+	len = strlen(gateway);
+	if(gateway[len-1] == '\n'){
+		gateway[len-1] = 0;
+	}
 	return gateway;	
 }
 
@@ -67,6 +77,11 @@ char* get_wan_dns(char *dns, int len)
 	FILE *fp = popen(". /lib/functions/network.sh; network_get_dnsserver ip wan; echo $ip", "r");
 	fgets(dns, len, fp);
 	pclose(fp);
+
+	len = strlen(dns);
+	if(dns[len-1] == '\n'){
+		dns[len-1] = 0;
+	}
 	return dns;
 }
 

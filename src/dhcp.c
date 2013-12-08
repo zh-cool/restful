@@ -212,8 +212,8 @@ static int check_addrpool(ezxml_t pool)
 
 static int calculate_addrpool(ezxml_t pool, int *offset, int *limit)
 {
-	char ip[INET_ADDRSTRLEN+1]={0};
-	int nip=0, nstart=0, nend=0;
+	char ip[INET_ADDRSTRLEN+1]={0}, netmask[INET_ADDRSTRLEN+1]={0};
+	int nip=0, nmask=0, nstart=0, nend=0;
 
 	ezxml_t start=ezxml_child(pool, "START");
 	ezxml_t end = ezxml_child(pool, "END");
@@ -227,7 +227,11 @@ static int calculate_addrpool(ezxml_t pool, int *offset, int *limit)
 	inet_pton(AF_INET, ip, &nip);
 	nip = ntohl(nip);
 
-	*offset = nstart-nip;
+	uci_get_cfg("network.lan.netmask", netmask, sizeof(netmask));
+	inet_pton(AF_INET, netmask, &nmask);
+	nmask = ntohl(nmask);
+
+	*offset = nstart-(nip&nmask);
 	*limit = nend - nstart;
 	return 0;
 }
@@ -253,9 +257,10 @@ int post_dhcp_server(int client, char *ibuf, int len, char *torken)
 
 	enabled = ezxml_child(root, "ENABLED");
 	if(enabled){
-		if(!enabled->txt[0])
+		if(!enabled->txt[0]){
 			ezxml_free(root);
 			return response_state(client, FORMAT_ERR, "Invalid ENABLE arg");
+		}
 	
 		int ienabled = atoi(enabled->txt);
 		if((ienabled!=0) && (ienabled !=1)){
@@ -266,7 +271,7 @@ int post_dhcp_server(int client, char *ibuf, int len, char *torken)
 		if(ienabled){
 			uci_set_cfg("dhcp.lan.ignore", "");
 			uci_set_cfg("dhcp.lan.start", "100");
-			uci_set_cfg("dhcp.lan.start", "150");
+			uci_set_cfg("dhcp.lan.limit", "150");
 			uci_set_cfg("dhcp.lan.leasetime", "12h");
 		}else{
 			uci_set_cfg("dhcp.lan.ignore", "1");
@@ -315,10 +320,15 @@ int post_dhcp_server(int client, char *ibuf, int len, char *torken)
 	addrpool = ezxml_child(root, "ADDRPOOL");
 	if(addrpool){
 		int offset=0, limit=0;
+		char coffset[8]={0}, climit[8]={0};
 		if(check_addrpool(addrpool)){
 			return response_state(client, FORMAT_ERR, "Invalid address pool");
 		}
 		calculate_addrpool(addrpool, &offset, &limit);
+		snprintf(coffset, sizeof(coffset), "%d", offset);
+		snprintf(climit,  sizeof(climit), "%d", limit);
+		uci_set_cfg("dhcp.lan.start", coffset);
+		uci_set_cfg("dhcp.lan.limit", climit);
 	}
 
 	if(changed){

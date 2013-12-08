@@ -119,6 +119,11 @@ static int get_wan_server(int client)
 	snprintf(ifname, sizeof(ifname), "%s", uci_get_cfg("network.wan.ifname", xml, sizeof(xml)));
 	get_interface_cfg(ifname, &cfg);
 
+	char *dnsfmt = "<DNS>"
+		               "<IP>%s</IP>"
+		               "<LEVEL>%s</LEVEL>"
+		       "</DNS>";
+
 	if(!strncmp(type, "dhcp", strlen("dhcp"))){
 		char *wanfmt = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
 			       "<NETWORK>"
@@ -134,6 +139,7 @@ static int get_wan_server(int client)
 					"</PROTO>"
 			       "</NETWORK>";
 
+
 		//DNS
 		get_wan_dns(xml, sizeof(xml));
 		char *ptr = xml, *tok=NULL;
@@ -142,11 +148,11 @@ static int get_wan_server(int client)
 			tok = strchr(ptr, ' ');
 			if(tok){
 				*tok++ = 0;
-				len = snprintf(dns+pos, sizeof(dns)-pos, "<DNS>%s</DNS>", ptr);
+				len = snprintf(dns+pos, sizeof(dns)-pos, dnsfmt, ptr, pos ? "Savle" : "Master");
 				pos += len;
 				ptr = tok;
 			}else{
-				len = snprintf(dns+pos, sizeof(dns)-pos, "<DNS>%s</DNS>", ptr);
+				len = snprintf(dns+pos, sizeof(dns)-pos, dnsfmt, ptr, pos ? "Savle" : "Master");
 				break;
 			}
 		}while(*ptr);
@@ -190,11 +196,11 @@ static int get_wan_server(int client)
 			tok = strchr(ptr, ' ');
 			if(tok){
 				*tok++ = 0;
-				len = snprintf(dns+pos, sizeof(dns)-pos, "<DNS>%s</DNS>", ptr);
+				len = snprintf(dns+pos, sizeof(dns)-pos, dnsfmt, ptr, pos ? "Slave" : "Master");
 				pos += len;
 				ptr = tok;
 			}else{
-				len = snprintf(dns+pos, sizeof(dns)-pos, "<DNS>%s</DNS>", ptr);
+				len = snprintf(dns+pos, sizeof(dns)-pos, dnsfmt, ptr, pos ? "Slave" : "Master");
 				break;
 			}
 		}while(*ptr);
@@ -250,11 +256,11 @@ static int get_wan_server(int client)
 			tok = strchr(ptr, ' ');
 			if(tok){
 				*tok++ = 0;
-				len = snprintf(dns+pos, sizeof(dns)-pos, "<DNS>%s</DNS>", ptr);
+				len = snprintf(dns+pos, sizeof(dns)-pos, dnsfmt, ptr, pos ? "Slave" : "Master");
 				pos += len;
 				ptr = tok;
 			}else{
-				len = snprintf(dns+pos, sizeof(dns)-pos, "<DNS>%s</DNS>", ptr);
+				len = snprintf(dns+pos, sizeof(dns)-pos, dnsfmt, ptr, pos ? "Slave" : "Master");
 				break;
 			}
 		}while(*ptr);
@@ -304,6 +310,7 @@ int post_wan_server(int client, char *inbuf)
 		ezxml_t gateway =  ezxml_child(proto, "GATEWAY");
 		ezxml_t broadcast = ezxml_child(proto, "BROADCAST");
 		ezxml_t dns = ezxml_child(proto, "DNS");
+		ezxml_t dnsip = NULL;
 		char dnsbuf[INET_ADDRSTRLEN*16] = {0};
 		int len=0;
 
@@ -315,18 +322,19 @@ int post_wan_server(int client, char *inbuf)
 		}
 
 		while(dns){
-			if(!dns->txt[0]){
+			dnsip = ezxml_child(dns, "IP");
+			if(!dnsip->txt[0]){
 				dns = dns->next;
 				continue;
 			}
 
-			if(!isip(dns->txt)){
+			if(!isip(dnsip->txt)){
 				ezxml_free(root);
 				return response_state(client, FORMAT_ERR, "Invalid dns ip address");
 			}
-			strncat(dnsbuf, dns->txt, sizeof(dnsbuf));
+			strncat(dnsbuf, dnsip->txt, sizeof(dnsbuf));
 			strncat(dnsbuf, " ", sizeof(dnsbuf));
-			dns = dns->next;
+			dns = dnsip->next;
 		}
 		if((len=strlen(dnsbuf)) && (dnsbuf[len-1]==' ')){
 			dnsbuf[len-1] = 0;
@@ -374,10 +382,42 @@ int post_wan_server(int client, char *inbuf)
 			(strlen(type->txt)==strlen("pppoe"))){
 		ezxml_t username = ezxml_child(proto, "USER_NAME");
 		ezxml_t password =  ezxml_child(proto, "PASSWORD");
+		ezxml_t predns = ezxml_child(proto, "PREDNS");
+		char dnsbuf[INET_ADDRSTRLEN*16] = {0};
+		int len=0;
+
 		if(!username || !password){
 			ezxml_free(root);
 			return response_state(client, FORMAT_ERR, err_msg[FORMAT_ERR]);
 		}
+
+		if(predns){
+			ezxml_t enabled = ezxml_child(predns, "ENABLED");
+			ezxml_t dnsip = NULL;
+			if(enabled && enabled->txt[0]=='0'){
+				ezxml_t dns = ezxml_child(predns, "DNS");
+				while(dns){
+					dnsip = ezxml_child(dns, "IP");
+					if(!dnsip->txt[0]){
+						dns = dns->next;
+						continue;
+					}
+
+					if(!isip(dnsip->txt)){
+						ezxml_free(root);
+						return response_state(client, FORMAT_ERR, "Invalid dns ip address");
+					}
+					strncat(dnsbuf, dnsip->txt, sizeof(dnsbuf));
+					strncat(dnsbuf, " ", sizeof(dnsbuf));
+					dns = dns->next;
+				}
+				if((len=strlen(dnsbuf)) && (dnsbuf[len-1]==' ')){
+					dnsbuf[len-1] = 0;
+				}	
+			}
+		}
+		uci_set_cfg("network.wan.peerdns", strlen(dnsbuf) ? "0" : "");
+		uci_set_cfg("network.wan.dns", dnsbuf);
 
 		uci_set_cfg("network.wan.proto", type->txt);
 		uci_set_cfg("network.wan.username", username->txt);
@@ -386,18 +426,47 @@ int post_wan_server(int client, char *inbuf)
 		uci_set_cfg("network.wan.broadcast", "");
 		uci_set_cfg("network.wan.ipaddr", "");
 		uci_set_cfg("network.wan.gateway", "");
-		uci_set_cfg("network.wan.dns", "");
 		uci_commit_change("network");
 		system("/etc/init.d/network restart");
 	}else if(!strncmp(type->txt, "dhcp", strlen(type->txt)) && 
 			(strlen(type->txt)==strlen("dhcp"))){
 		uci_set_cfg("network.wan.proto", type->txt);
+		ezxml_t predns = ezxml_child(proto, "PREDNS");
+		char dnsbuf[INET_ADDRSTRLEN*16] = {0};
+		int len=0;
+		if(predns){
+			ezxml_t enabled = ezxml_child(predns, "ENABLED");
+			if(enabled && enabled->txt[0]=='0'){
+				ezxml_t dns = ezxml_child(predns, "DNS");
+				ezxml_t dnsip = NULL;
+				while(dns){
+					dnsip = ezxml_child(dns, "IP");
+					if(!dnsip->txt[0]){
+						dns = dns->next;
+						continue;
+					}
+
+					if(!isip(dnsip->txt)){
+						ezxml_free(root);
+						return response_state(client, FORMAT_ERR, "Invalid dns ip address");
+					}
+					strncat(dnsbuf, dnsip->txt, sizeof(dnsbuf));
+					strncat(dnsbuf, " ", sizeof(dnsbuf));
+					dns = dns->next;
+				}
+				if((len=strlen(dnsbuf)) && (dnsbuf[len-1]==' ')){
+					dnsbuf[len-1] = 0;
+				}	
+			}
+		}
+		uci_set_cfg("network.wan.peerdns", strlen(dnsbuf) ? "0" : "");
+		uci_set_cfg("network.wan.dns", dnsbuf);
+
 
 		uci_set_cfg("network.wan.netmask", "");
 		uci_set_cfg("network.wan.broadcast", "");
 		uci_set_cfg("network.wan.ipaddr", "");
 		uci_set_cfg("network.wan.gateway", "");
-		uci_set_cfg("network.wan.dns", "");
 		uci_commit_change("network");
 		system("/etc/init.d/network restart");
 	}else{

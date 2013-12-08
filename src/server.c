@@ -81,7 +81,7 @@ void do_read(evutil_socket_t fd, short events, void *arg)
                         route_server(fd, state->buffer, i-2);
 			fprintf(stderr, "close client\n");
 			//close(fd);
-			//shutdown(fd, SHUT_RDWR);
+			shutdown(fd, SHUT_RDWR);
 			close(fd);
 			//evutil_closesocket(fd);
                         free_fd_state(state);
