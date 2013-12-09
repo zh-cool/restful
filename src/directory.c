@@ -22,8 +22,6 @@ POST /app/route/directory
 #include "errno.h"
 
 extern char* urldecode(const char *in_str, char *out_str, int len);
-static char *xmlhead = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-                       "<DIRECTORY>";
 
 #define SYS_MOUNT_ROOT	"/media"
 #define MAX_BUF 1024*1024
@@ -144,12 +142,41 @@ int post_directory_server(int client, char *ibuf, int length, char *subtork)
         return 0;
 }
 
+static int get_dev_space(char *used, char *freed)
+{
+	FILE *fp = NULL;
+
+	fp = popen("/bin/df -h", "r");
+	if(!fp){
+		return 1;
+	}
+
+	char line[256]={0}, tmp[128]={0}, *ptr=NULL;
+
+	while(fgets(line, sizeof(line), fp)){
+		ptr = strstr(line, "/media");
+		if(!ptr) continue;
+
+		sscanf(line, "%s %s %s %s", tmp, tmp, used, freed);
+		break;
+	}
+	pclose(fp);
+	return 0;
+}
+
 int get_directory_server(int client, char *ibuf, int length, char *torken)
 {
+	static char *xmlhead = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                               "<DIRECTORY>"
+			       "<SPACE>"
+			       		"<FREE>%s</FREE>"
+					"<USED>%s</USED>"
+			       "</SPACE>";
+
         char path[PATH_MAX];
         DIR *dir = NULL;
         struct dirent *it = NULL;
-        char xml[MAX_BUF] = {0};
+        char xml[MAX_BUF] = {0}, used[32]={0}, freed[32]={0};
         int len=0, pos=0;
 
         if(length > PATH_MAX) {
@@ -167,7 +194,9 @@ int get_directory_server(int client, char *ibuf, int length, char *torken)
                 return response_state(client, errno, strerror(errno));
         }
 
-        pos += snprintf(xml+pos, sizeof(xml), "%s", xmlhead);
+	get_dev_space(used, freed);
+
+        pos += snprintf(xml+pos, sizeof(xml), xmlhead, freed, used);
         while((it=readdir(dir))) {
                 if(DT_DIR == it->d_type) {
                         if(!strcmp(".", it->d_name) || !strcmp("..", it->d_name)) {

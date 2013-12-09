@@ -26,6 +26,8 @@ struct rest_service get_rest_service[] = {
 	{"dhcp",	get_dhcp_server},
 	{"log", 	get_log_server},
 	{"time",	get_time_server},
+	{"system",      get_system_server},
+	{"upnp", 	get_upnp_server},
 	{NULL,        	NULL}
 };
 
@@ -36,6 +38,8 @@ struct rest_service post_rest_service[] = {
 	{"software", 	post_software_server},
 	{"dhcp", 	post_dhcp_server},
 	{"time", 	post_time_server},
+	{"system",	post_system_server},
+	{"upnp", 	post_upnp_server},
 	{NULL, 		NULL}
 };
 

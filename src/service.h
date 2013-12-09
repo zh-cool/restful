@@ -21,4 +21,10 @@ int get_log_server(int client, char *ibuf, int len, char *torken);
 
 int get_time_server(int client, char *ibuf, int len, char *torken);
 int post_time_server(int client, char *ibuf, int len, char *torken);
+
+int get_system_server(int client, char *ibuf, int len, char *torken);
+int post_system_server(int client, char *ibuf, int len, char *torken);
+
+int get_upnp_server(int client, char *ibuf, int len, char *torken);
+int post_upnp_server(int client, char *ibuf, int len, char *torken);
 #endif

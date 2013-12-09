@@ -20,6 +20,43 @@
 #define USERNAMELEN	32
 #define PASSWORDLEN	32
 
+static int get_port_status(char *port, int len)
+{
+
+	char *pfmt = "<PORT>"
+		     	"<NUM>%d</NUM>"
+			"<STATUS>%s</STATUS>"
+		     "</PORT>";
+
+	FILE *fp = NULL;
+	char line[128]={0}, *ptr=NULL, *status=NULL;
+	int pos=0, cnt=0;
+
+	fp = popen("/sbin/swconfig dev eth0 show", "r");
+	if(!fp){
+		return 1;
+	}
+
+	while(fgets(line, sizeof(line), fp)){
+		ptr = strstr(line, "link: port:");
+		if(!ptr) continue;
+		ptr += strlen("link: port:");
+
+		status = strstr(ptr, "link:");
+		if(!status) continue;
+		*status = 0;
+		status += strlen("link:");
+		cnt = strlen(status);
+		if(status[cnt-1] == '\n'){
+			status[cnt-1] = 0;
+		}
+
+		cnt = snprintf(port+pos, len-pos, pfmt, atoi(ptr), status);
+		pos += cnt;
+	}
+
+}
+
 static int get_lan_server(int client)
 {
 	char *lanfmt =  "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
@@ -31,6 +68,9 @@ static int get_lan_server(int client)
 				"<NETMASK>%s</NETMASK>"
 				"<MAC>%s</MAC>"
 			"</PROTO>"
+			"<SWITCH>"
+			"%s"
+			"</SWITCH>"
 		"</Network>";
 
 
@@ -38,6 +78,7 @@ static int get_lan_server(int client)
 	char type[NETTYPELEN] = {0};
 	char ip[INET_ADDRSTRLEN] = {0};
 	char netmask[INET_ADDRSTRLEN] = {0};
+	char port[XMLLEN] = {0};
 
 	struct if_cfg cfg;
 
@@ -52,7 +93,9 @@ static int get_lan_server(int client)
 	snprintf(netmask, sizeof(netmask), "%s", 
 			uci_get_cfg("network.lan.netmask", xml, sizeof(xml)));
 
-	snprintf(xml, sizeof(xml), lanfmt, type, ip, netmask, cfg.mac);
+	get_port_status(port, sizeof(port));
+
+	snprintf(xml, sizeof(xml), lanfmt, type, ip, netmask, cfg.mac, port);
 	write(client, xml, strlen(xml));
 	return 0;
 }

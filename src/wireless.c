@@ -426,7 +426,7 @@ int get_wireless_server(int client, char *ibuf, int len, char *torken)
 					"</CHANNEL>"
 					"<TXPOWER>%s</TXPOWER>"
 					"<HIDESSID>%s</HIDESSID>"
-					"<WDS>%s</WDS"
+					"<WDS>%s</WDS>"
 				"</ADVANCE>"
 			"</CONFIG>";
 
@@ -726,7 +726,7 @@ static int set_security_arg(ezxml_t security, int BG)
 
 static int set_base_arg(ezxml_t base, int BG)
 {	
-	ezxml_t security=NULL, disable=NULL, txpower=NULL;
+	ezxml_t security=NULL, disable=NULL, ssid=NULL;
 
 	security = ezxml_child(base, "SECURITY");
 	disable  = ezxml_child(base, "DISABLE");
@@ -740,7 +740,7 @@ static int set_base_arg(ezxml_t base, int BG)
 
 static int set_advance_arg(ezxml_t advance, int BG)
 {
-	ezxml_t mode=NULL, htmode=NULL, rts=NULL, ssid=NULL, channel=NULL, country=NULL, hidden=NULL;
+	ezxml_t mode=NULL, htmode=NULL, rts=NULL, channel=NULL, country=NULL, hidden=NULL, txpower=NULL, wds=NULL;
 
 	mode   = ezxml_child(advance, "MODE");
 	htmode = ezxml_child(advance, "HTMODE");
@@ -758,8 +758,8 @@ static int set_advance_arg(ezxml_t advance, int BG)
 	uci_set_cfg(RADIO(BG, country), country->txt);
 	uci_set_cfg(RADIO(BG, channel), channel->txt);
 	uci_set_cfg(RADIO(BG, txpower), txpower->txt);
-	uci set_cfg(IFACE(BG, hidden), hidden->txt);
-	uci_set_cfg(IFACE(BG, wds), hidden->txt);
+	uci_set_cfg(IFACE(BG, hidden), hidden->txt);
+	uci_set_cfg(IFACE(BG, wds), wds->txt);
 	return 0;
 }
 
