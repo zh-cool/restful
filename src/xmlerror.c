@@ -16,10 +16,10 @@ int response_state(int client, int code, char *msg)
 {
 	char buf[512] = {0};
 	static char *xmlfmt = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-		              "<ERROR>"
+		              "<RESULT>"
 			      	"<CODE>%d</CODE>"
 			      	"<MESSAGE>%s</MESSAGE>"
-			      "</ERROR>";
+			      "</RESULT>";
 	snprintf(buf, sizeof(buf), xmlfmt, code, msg);
 	write(client, buf, strlen(buf));
 	return code;

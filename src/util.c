@@ -245,3 +245,25 @@ char* find_ip_tbl(struct arp_tbl* tbl, char *max)
 	}
 	return NULL;
 }
+
+int write_to_server(int client, char *xml, int len)
+{
+	int pos=0, n_write=0;
+	struct timeval tv = {0, 0};
+
+	while(len){
+		if((pos=write(client, xml+n_write, len))<0){
+			if(errno == EAGAIN){
+				printf("Write error\n");
+				tv.tv_sec=0;
+				tv.tv_usec=10*1000;
+				select(0, NULL, NULL, NULL, &tv);
+				continue;
+			}
+		}
+		len -= pos;
+		n_write += pos;
+	}
+	return n_write;
+}
+

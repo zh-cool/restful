@@ -54,7 +54,7 @@ static int get_port_status(char *port, int len)
 		cnt = snprintf(port+pos, len-pos, pfmt, atoi(ptr), status);
 		pos += cnt;
 	}
-
+	return 0;
 }
 
 static int get_lan_server(int client)

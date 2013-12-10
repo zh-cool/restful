@@ -25,6 +25,7 @@
 #include <dirent.h>
 #include <error.h>
 #include <ctype.h>
+#include <time.h>
 #include "restful.h"
 #include "service.h"
 #include "ezxml.h"

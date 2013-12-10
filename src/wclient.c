@@ -33,27 +33,6 @@
 #include "xmlerror.h"
 #include "errno.h"
 #include "util.h"
-/* 
-for (i = 0, x = 1; i < len; i += sizeof(struct iwinfo_scanlist_entry), x++)
-{
-	e = (struct iwinfo_scanlist_entry *) &buf[i];
-
-	printf("Cell %02d - Address: %s\n",
-			x,
-			format_bssid(e->mac));
-	printf("          ESSID: %s\n",
-			format_ssid(e->ssid));
-	printf("          Mode: %s  Channel: %s\n",
-			IWINFO_OPMODE_NAMES[e->mode],
-			format_channel(e->channel));
-	printf("          Signal: %s  Quality: %s/%s\n",
-			format_signal(e->signal - 0x100),
-			format_quality(e->quality),
-			format_quality_max(e->quality_max));
-	printf("          Encryption: %s\n\n",
-			format_encryption(&e->crypto));
-}
-*/
 
 static char * format_ssid(char *ssid)
 {
@@ -314,6 +293,16 @@ static int associate_ap(int client, ezxml_t ap)
 
 static int deauthenticated_ap(int client)
 {
+	char xml[32]={0};
+	uci_get_cfg("wireless.@wifi-iface[-1].mode", xml, sizeof(xml));
+	if(!strcmp(xml, "sta")){
+		system("/sbin/uci delete wireless.@wifi-iface[-1]");
+	}
+	uci_set_cfg("network.wan.ifname", "eth0.2");
+
+	system("/sbin/uci commit wireless");
+	system("/sbin/uci commit network");
+	system("/etc/init.d/network restart");
 	return 0;
 }
 
@@ -341,6 +330,7 @@ int post_wclient_server(int client, char *ibuf, int len, char *torken)
 	if(act && !strcmp(act->txt, "deauthenticated")){
 		return deauthenticated_ap(client);
 	}
-
+	
+	ezxml_free(root);
 	return response_state(client, FORMAT_ERR, "unknow active");
 }
