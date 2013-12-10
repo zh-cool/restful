@@ -28,6 +28,7 @@ struct rest_service get_rest_service[] = {
 	{"time",	get_time_server},
 	{"system",      get_system_server},
 	{"upnp", 	get_upnp_server},
+	{"wclient", 	get_wclient_server},
 	{NULL,        	NULL}
 };
 
@@ -40,6 +41,7 @@ struct rest_service post_rest_service[] = {
 	{"time", 	post_time_server},
 	{"system",	post_system_server},
 	{"upnp", 	post_upnp_server},
+	{"wclient", 	post_wclient_server},
 	{NULL, 		NULL}
 };
 

@@ -112,7 +112,7 @@ int get_system_server(int client, char *ibuf, int len, char *subtok)
 	if(!strcmp(ibuf, "/basic")){
 		get_sys_basic(client);
 	}
-	return 0;
+	return response_state(client, NO_SERVICE, err_msg[NO_SERVICE]);
 }
 
 int post_system_server(int client, char *ibuf, int len, char *torken)

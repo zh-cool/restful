@@ -27,4 +27,7 @@ int post_system_server(int client, char *ibuf, int len, char *torken);
 
 int get_upnp_server(int client, char *ibuf, int len, char *torken);
 int post_upnp_server(int client, char *ibuf, int len, char *torken);
+
+int get_wclient_server(int client, char *ibuf, int len, char *torken);
+int post_wclient_server(int client, char *ibuf, int len, char *torken);
 #endif
