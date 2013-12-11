@@ -313,6 +313,7 @@ int post_wclient_server(int client, char *ibuf, int len, char *torken)
 	}
 
 	ezxml_t root = NULL, act=NULL, ap=NULL;
+	int ret=0;
 
 	root = ezxml_parse_str(ibuf, len);
 	if(!root){
@@ -328,13 +329,14 @@ int post_wclient_server(int client, char *ibuf, int len, char *torken)
 	ap = ezxml_child(root, "AP");
 
 	if(act && !strcmp(act->txt, "associate")){
-		return associate_ap(client, ap);
+		ret = associate_ap(client, ap);
+	}else if(act && !strcmp(act->txt, "deauthenticated")){
+		ret = deauthenticated_ap(client);
+	}else{
+		ezxml_free(root);
+		return response_state(client, FORMAT_ERR, "unknow active");
 	}
 
-	if(act && !strcmp(act->txt, "deauthenticated")){
-		return deauthenticated_ap(client);
-	}
-	
 	ezxml_free(root);
-	return response_state(client, FORMAT_ERR, "unknow active");
+	return ret;
 }
