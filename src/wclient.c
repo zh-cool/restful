@@ -308,6 +308,10 @@ static int deauthenticated_ap(int client)
 
 int post_wclient_server(int client, char *ibuf, int len, char *torken)
 {
+	if(torken){
+		return response_state(client, NO_SERVICE, err_msg[NO_SERVICE]);
+	}
+
 	ezxml_t root = NULL, act=NULL, ap=NULL;
 
 	root = ezxml_parse_str(ibuf, len);

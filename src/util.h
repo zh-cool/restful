@@ -10,6 +10,7 @@ int isnetmask(const char *netmask);
 char* uci_get_cfg(const char *cfg, char *buf, int len);
 int uci_set_cfg(const char *csp, const char *value);
 int uci_commit_change();
+int write_to_server(int client, char *xml, int len);
 
 struct if_cfg{
 	char	mac[32];
