@@ -543,7 +543,7 @@ int post_network_server(int client, char *ibuf, int len, char *subtok)
 {
 	int ret = 0;
 
-	if(subtok >= ibuf){
+	if(!subtok){
 		return response_state(client, NO_SERVICE, err_msg[NO_SERVICE]);
 	}
 

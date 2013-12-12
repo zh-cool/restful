@@ -33,6 +33,70 @@
 #include "xmlerror.h"
 #include "errno.h"
 #include "util.h"
+static char * format_signal(int sig)
+{
+	static char buf[10];
+
+	if (!sig)
+		snprintf(buf, sizeof(buf), "unknown");
+	else
+		snprintf(buf, sizeof(buf), "%d dBm", sig);
+
+	return buf;
+}
+
+static char * format_noise(int noise)
+{
+	static char buf[10];
+
+	if (!noise)
+		snprintf(buf, sizeof(buf), "unknown");
+	else
+		snprintf(buf, sizeof(buf), "%d dBm", noise);
+
+	return buf;
+}
+
+static char * format_rate(int rate)
+{
+	static char buf[14];
+
+	if (rate <= 0)
+		snprintf(buf, sizeof(buf), "unknown");
+	else
+		snprintf(buf, sizeof(buf), "%d.%d MBit/s",
+				rate / 1000, (rate % 1000) / 100);                                                                                                                               
+
+	return buf;
+}
+
+static char * format_assocrate(struct iwinfo_rate_entry *r)
+{
+	static char buf[40];
+	char *p = buf;
+	int l = sizeof(buf);
+
+	if (r->rate <= 0)
+	{
+		snprintf(buf, sizeof(buf), "unknown");
+	}
+	else
+	{
+		p += snprintf(p, l, "%s", format_rate(r->rate));
+		l = sizeof(buf) - (p - buf);
+
+		if (r->mcs >= 0)
+		{
+			p += snprintf(p, l, ", MCS %d, %dMHz", r->mcs, 20 + r->is_40mhz*20);
+			l = sizeof(buf) - (p - buf);
+
+			if (r->is_short_gi)
+				p += snprintf(p, l, ", short GI");
+		}
+	}
+
+	return buf;
+}
 
 static char * format_ssid(char *ssid)
 {
@@ -229,9 +293,129 @@ static int get_ap_list(int client)
 	return 0;
 }
 
+static int get_wclient_config(client)
+{
+	char *cfmt = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+		     "<WCLIENT>"
+		     	"<AP>"
+				"<BAND>2G</BAND>"
+				"<SSID>%s</SSID>"
+				"%s"
+				"<ASSOCIATE>"
+					"<SIGNAL>%s</SIGNAL>"
+					"<NOISE>%s</NOISE>"
+					"<RX_RATE>%s</RX_RATE>"
+					"<TX_RATE>%s</TX_RATE>"
+					"<CHANNEL>%d</CHANNEL>"
+				"</ASSOCIATE>"
+			"</AP>"
+		     "</WCLIENT>";
+
+	char *wpafmt = "<SECURITY>"
+				"<ENCRYPTION>%s</ENCRYPTION>"
+				"<KEY>%s</KEY>"
+		       "</SECURITY>";	
+
+	char *wepfmt = "<SECURITY>"
+				"<ENCRYPTION>%s</ENCRYPTION>"
+				"<KEY>%s</KEY>"
+				"<KEY1>%s</KEY1>"
+				"<KEY2>%s</KEY2>"
+				"<KEY3>%s</KEY3>"
+				"<KEY4>%s</KEY4>"
+		       "</SECURITY>";	       
+
+	char *noassoci ="<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+		     	"<WCLIENT>"
+		     		"<AP>"
+		     		"</AP>"
+		     	"</WCLIENT>";
+
+	char ssid[64]={0}, encry[16]={0}, key[64]={0}, ifname[16]={0};
+	char xml[XMLLEN] = {0};
+	char security[XMLLEN] = {0};
+
+	struct iwinfo_assoclist_entry *e=NULL;
+	const struct iwinfo_ops *iw=NULL;
+
+	uci_get_cfg("wireless.@wifi-iface[2].mode", xml, sizeof(xml));
+	if(strcmp(xml, "sta")){
+		strcpy(xml, noassoci);
+		write(client, xml, sizeof(xml));
+		return 0;
+	}
+
+	uci_get_cfg("wireless.@wifi-iface[2].ssid", ssid, sizeof(ssid));
+	uci_get_cfg("wireless.@wifi-iface[2].encryption", encry, sizeof(encry));
+	uci_get_cfg("wireless.@wifi-iface[2].key", key, sizeof(key));
+	uci_get_cfg("network.wan.ifname", ifname, sizeof(ifname));
+
+	if(!strcmp(encry, "wep-open") || !strcmp(encry, "wep-shared")){
+		char wepkey[4][64];
+		snprintf(wepkey[0], sizeof(wepkey[0]), "%s", uci_get_cfg("wireless.@wifi-iface[2].key1", xml, sizeof(xml)));
+		snprintf(wepkey[1], sizeof(wepkey[1]), "%s", uci_get_cfg("wireless.@wifi-iface[2].key2", xml, sizeof(xml)));
+		snprintf(wepkey[2], sizeof(wepkey[2]), "%s", uci_get_cfg("wireless.@wifi-iface[2].key3", xml, sizeof(xml)));
+		snprintf(wepkey[3], sizeof(wepkey[3]), "%s", uci_get_cfg("wireless.@wifi-iface[2].key4", xml, sizeof(xml)));
+		snprintf(security, sizeof(security), wepfmt, 
+				encry, 
+				key, 
+				wepkey[0][0]=='s' ? &wepkey[0][0]+2 : wepkey[0], 
+				wepkey[1][0]=='s' ? &wepkey[1][0]+2 : wepkey[1], 
+				wepkey[2][0]=='s' ? &wepkey[2][0]+2 : wepkey[2], 
+				wepkey[3][0]=='s' ? &wepkey[3][0]+2 : wepkey[3]
+			);
+	}else if(!strcmp(encry, "none")){
+		strcpy(security, "<SECURITY><ENCRYPTION>none</ENCRYPTION></SECURITY>");
+	}else{
+		snprintf(security, sizeof(security), wpafmt, 
+				encry,
+				key
+			);
+
+	}
+
+	iw = iwinfo_backend(ifname);
+	if(!iw){
+		strcpy(xml, noassoci);
+		write(client, xml, sizeof(xml));
+		return 0;
+	}
+
+	char buf[XMLLEN]={0};
+	int len=0, ch=0;
+
+	if (iw->assoclist(ifname, buf, &len) || (len<=0)){
+		strcpy(xml, noassoci);
+		write(client, xml, sizeof(xml));
+		return 0;
+	}
+
+	if (iw->channel(ifname, &ch)){
+		ch = -1;	
+	}
+
+	e = (struct iwinfo_assoclist_entry *) &buf[0];
+	snprintf(xml, sizeof(xml), cfmt, 
+			ssid,
+			security,
+			format_signal(e->signal),
+			format_noise(e->noise),
+			format_assocrate(&e->rx_rate),
+			format_assocrate(&e->tx_rate),
+			ch
+		);
+
+	write(client, xml, strlen(xml));
+	return 0;
+}
+
 int get_wclient_server(int client, char *ibuf, int len, char *torken)
 {
-	if(!strcmp(ibuf, "/scan")){
+	if(ibuf && !strcmp(ibuf, "/config")){
+		return get_wclient_config(client);
+	}
+
+	if(ibuf && !strcmp(ibuf, "/scan")){
 		return get_ap_list(client);
 	}
 
@@ -248,16 +432,19 @@ static int associate_ap(int client, ezxml_t ap)
 	char *device[] = {"radio0", "radio1"};
 	char xml[32]={0};
 
-	ezxml_t band=NULL, ssid=NULL, encry=NULL, key=NULL, channel=NULL;
+	ezxml_t band=NULL, ssid=NULL, sec=NULL, encry=NULL, key=NULL, channel=NULL;
 	int iface = 0;
 
 	band = ezxml_child(ap, "BAND");
 	ssid = ezxml_child(ap, "SSID");
-	encry = ezxml_child(ap, "ENCRYPTION");
-	key = ezxml_child(ap, "KEY");
 	channel = ezxml_child(ap, "CHANNEL");
 
-	if(!(band && ssid && encry && key && channel)){
+	if((sec=ezxml_child(ap, "SECURITY"))){
+		encry = ezxml_child(sec, "ENCRYPTION");
+		key = ezxml_child(sec, "KEY");
+	}
+
+	if(!(band && ssid && encry && channel && sec)){
 		return response_state(client, FORMAT_ERR, "lose node");
 	}
 
@@ -282,7 +469,29 @@ static int associate_ap(int client, ezxml_t ap)
 	uci_set_cfg("wireless.@wifi-iface[-1].mode", "sta");
 	uci_set_cfg("wireless.@wifi-iface[-1].network", "wan");
 	uci_set_cfg("wireless.@wifi-iface[-1].encryption", encry->txt);
-	uci_set_cfg("wireless.@wifi-iface[-1].key", key->txt);
+	uci_set_cfg("wireless.@wifi-iface[-1].key", key ? key->txt:"");
+	if(!strcmp(encry->txt, "wep-open") || !strcmp(encry->txt, "wep-shared")){
+		ezxml_t  key1=NULL, key2=NULL, key3=NULL, key4=NULL;
+		char passwd[64] = {0};
+
+		key1 = ezxml_child(sec, "key1");
+		key2 = ezxml_child(sec, "key2");
+		key3 = ezxml_child(sec, "key3");
+		key4 = ezxml_child(sec, "key4");
+
+		snprintf(passwd, sizeof(passwd), "s:%s", key1 ? key1->txt:"");
+		uci_set_cfg("wireless.@wifi-iface[-1].key1", passwd);
+
+		snprintf(passwd, sizeof(passwd), "s:%s", key2 ? key2->txt:"");
+		uci_set_cfg("wireless.@wifi-iface[-1].key2", passwd);
+
+		snprintf(passwd, sizeof(passwd), "s:%s", key3 ? key3->txt:"");
+		uci_set_cfg("wireless.@wifi-iface[-1].key3", passwd);
+
+		snprintf(passwd, sizeof(passwd), "s:%s", key4 ? key4->txt:"");
+		uci_set_cfg("wireless.@wifi-iface[-1].key4", passwd);
+	}
+
 	uci_set_cfg("network.wan.ifname", ifname[iface]);
 
 	system("/sbin/uci commit wireless");
@@ -297,6 +506,8 @@ static int deauthenticated_ap(int client)
 	uci_get_cfg("wireless.@wifi-iface[-1].mode", xml, sizeof(xml));
 	if(!strcmp(xml, "sta")){
 		system("/sbin/uci delete wireless.@wifi-iface[-1]");
+	}else{
+		return 0;
 	}
 	uci_set_cfg("network.wan.ifname", "eth0.2");
 

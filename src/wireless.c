@@ -349,11 +349,11 @@ static int get_assoc_server(int client)
 
 	int i, len, k, pos, wlen;
 	char buf[IWINFO_BUFSIZE], sys_err[128];
-	struct iwinfo_assoclist_entry *e;
+	struct iwinfo_assoclist_entry *e=NULL;
 
 	char xml[XMLLEN*32] = {0}, mac[32] = {0}, *ip=NULL;
 	char associate[2][XMLLEN*16] = {{0}, {0}};
-	const struct iwinfo_ops *iw;
+	const struct iwinfo_ops *iw=NULL;
 	struct arp_tbl *ptbl = get_arp_tbl();
 
 	for(k=0; k<2; k++){
@@ -469,7 +469,7 @@ int get_wireless_server(int client, char *ibuf, int len, char *torken)
 		return get_assoc_server(client);
 	}
 
-	if(0 != len){
+	if(!ibuf || strcmp(ibuf, "/config")){
 		return response_state(client, NO_SERVICE, err_msg[NO_SERVICE]);
 	}
 
@@ -501,6 +501,7 @@ int get_wireless_server(int client, char *ibuf, int len, char *torken)
 		snprintf(wds, sizeof(wds), "%s",	uci_get_cfg(IFACE(i, wds), xml, sizeof(xml)));
 		//Sec
 		snprintf(encry, sizeof(encry), "%s", uci_get_cfg(IFACE(i, encryption), xml, sizeof(xml)));
+		
 		if(!strncmp(encry, "none", sizeof(encry)) && (strlen(encry)==strlen("none"))){
 			snprintf(security, sizeof(security), "%s", "<ENCRYPTION>NONE</ENCRYPTION>");
 		}else if((!strncmp(encry, "wep-open", sizeof(encry)) && (strlen(encry)==strlen("wep-open"))) ||
@@ -511,13 +512,22 @@ int get_wireless_server(int client, char *ibuf, int len, char *torken)
 			}else{
 				snprintf(name, sizeof(name), "%s", "WEP Share key");
 			}
+			//不对加密方式解析， 有上端自己显示
+			snprintf(name, sizeof(name), "%s", encry); 
 
 			snprintf(index, sizeof(index), "%s", uci_get_cfg(IFACE(i, key), xml, sizeof(xml)));
 			snprintf(key[0], sizeof(key[0]), "%s", uci_get_cfg(IFACE(i, key1), xml, sizeof(xml)));
 			snprintf(key[1], sizeof(key[1]), "%s", uci_get_cfg(IFACE(i, key2), xml, sizeof(xml)));
 			snprintf(key[2], sizeof(key[2]), "%s", uci_get_cfg(IFACE(i, key3), xml, sizeof(xml)));
 			snprintf(key[3], sizeof(key[3]), "%s", uci_get_cfg(IFACE(i, key4), xml, sizeof(xml)));
-			snprintf(security, sizeof(security), wepfmt, name, index, key[0], key[1], key[2], key[3]);
+			snprintf(security, sizeof(security), wepfmt, 
+					name, 
+					index, 
+					key[0][0]=='s' ? &key[0][0]+2 : key[0], 
+					key[1][0]=='s' ? &key[1][0]+2 : key[1], 
+					key[2][0]=='s' ? &key[2][0]+2 : key[2], 
+					key[3][0]=='s' ? &key[3][0]+2 : key[3]
+					);
 
 		}else if(!strncmp(encry, "psk", strlen("psk"))){
 			char name[32], cipher[16], key[128], *ptr = NULL;
@@ -532,16 +542,34 @@ int get_wireless_server(int client, char *ibuf, int len, char *torken)
 			ptr = strchr(encry, '+');
 			if(!ptr){
 				snprintf(cipher, sizeof(cipher), "%s", "auto");
+				//不对加密方式解析， 有上端自己显示
+				snprintf(name, sizeof(name), "%s", encry);
 			}else{
 				snprintf(cipher, sizeof(cipher), "%s", ptr+1);
+				//不对加密方式解析， 有上端自己显示
+				*ptr = 0;
+				snprintf(name, sizeof(name), "%s", encry);
 			}
-
 			snprintf(key, sizeof(key), "%s", uci_get_cfg(IFACE(i, key), xml, sizeof(xml)));
 
 			snprintf(security, sizeof(security), wpafmt, name, cipher, key);
 		}
-		snprintf(config[i], sizeof(config[i]), cfmt, band, disable, ssid, security, mode, htmode, country, rts, ch, channel, txpower, hssid, wds);
-		printf("\nconfig %s\n", config[i]);
+		
+		snprintf(config[i], sizeof(config[i]), cfmt, 
+				band, 
+				disable, 
+				ssid, 
+				security, 
+				mode, 
+				htmode, 
+				country, 
+				rts, 
+				ch, 
+				channel, 
+				txpower, 
+				hssid, 
+				wds
+			);
 	}
 	snprintf(xml, sizeof(xml), wfmt, config[0], config[1]);
 
