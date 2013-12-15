@@ -23,7 +23,7 @@ POST /app/route/directory
 
 extern char* urldecode(const char *in_str, char *out_str, int len);
 
-#define SYS_MOUNT_ROOT	"/media"
+#define SYS_MOUNT_ROOT  "/media"
 #define MAX_BUF 1024*1024
 #define ERRFMT "<?xml version=\"1.0\" encoding=\"utf-8\"?><ERROR><CODE>%d</CODE><MESSAGE>%s</MESSAGE></ERROR>"
 
@@ -51,10 +51,14 @@ static int remove_file(const char *path)
                 }
 
                 while((it=readdir(dir))) {
-                        if(!strcmp(it->d_name, ".") || !strcmp(it->d_name, "..")) {
+                        if(!strcmp(it->d_name, ".") ||
+                                        !strcmp(it->d_name, "..")) {
                                 continue;
                         }
-                        snprintf(npath, sizeof(npath), "%s/%s", path, it->d_name);
+                        snprintf(npath, sizeof(npath), "%s/%s",
+                                        path,
+                                        it->d_name);
+
                         if((ret=remove_file(npath))) {
                                 closedir(dir);
                                 return ret;
@@ -93,7 +97,10 @@ int post_directory_server(int client, char *ibuf, int length, char *subtork)
                         strcpy(path, SYS_MOUNT_ROOT);
                         strcat(path, urldecode(dir->txt, url, sizeof(url)));
                         if(mkdir(path, 0775) < 0) {
-                                return response_state(client, errno, strerror(errno));
+                                return response_state(client,
+                                                errno,
+                                                strerror(errno)
+                                                );
                         }
                 }
 
@@ -103,23 +110,33 @@ int post_directory_server(int client, char *ibuf, int length, char *subtork)
                         strcat(path, urldecode(file->txt, url, sizeof(url)));
                         if((fd=open(path, O_RDWR|O_CREAT, 0664)) < 0) {
                                 fprintf(stderr, "Can not create %s\n", path);
-                                return response_state(client, errno, strerror(errno));
+                                return response_state(client,
+                                                errno,
+                                                strerror(errno)
+                                                );
                         } else {
                                 close(fd);
                         }
                 }
         } else if(!strcmp(action->txt,"Delete")) {
-		int ret=0;
+                int ret=0;
                 ezxml_t delname = ezxml_child(root, "DEL_NAME");
 
                 if(!delname) {
-                        return response_state(client, FORMAT_ERR, err_msg[FORMAT_ERR]);
+                        return response_state(client, FORMAT_ERR,
+                                        err_msg[FORMAT_ERR]);
                 }
                 for(; delname; delname=delname->next) {
-                        snprintf(path, sizeof(path), "%s%s", SYS_MOUNT_ROOT, urldecode(delname->txt, url, sizeof(url)));
-			if((ret=remove_file(path))){
-				return response_state(client, ret, strerror(ret));
-			}
+                        snprintf(path, sizeof(path), "%s%s",
+                                 SYS_MOUNT_ROOT,
+                                 urldecode(delname->txt, url, sizeof(url))
+                                );
+                        if((ret=remove_file(path))){
+                                return response_state(client,
+                                                ret,
+                                                strerror(ret)
+                                                );
+                        }
                 }
         } else if(!strcmp(action->txt,"Rename")) {
                 ezxml_t oldname = ezxml_child(root, "OLD_NAME");
@@ -127,16 +144,27 @@ int post_directory_server(int client, char *ibuf, int length, char *subtork)
                 char newpath[PATH_MAX];
 
                 if(!oldname || !newname) {
-                        return response_state(client, FORMAT_ERR, err_msg[FORMAT_ERR]);
+                        return response_state(client,
+                                        FORMAT_ERR,
+                                        err_msg[FORMAT_ERR]
+                                        );
                 }
 
-                snprintf(path, sizeof(path), "%s%s", SYS_MOUNT_ROOT, urldecode(oldname->txt, url, sizeof(url)));
-                snprintf(newpath, sizeof(path), "%s%s", SYS_MOUNT_ROOT, urldecode(newname->txt, url, sizeof(url)));
+                snprintf(path, sizeof(path), "%s%s",
+                                SYS_MOUNT_ROOT,
+                                urldecode(oldname->txt, url, sizeof(url))
+                                );
+                snprintf(newpath, sizeof(path), "%s%s",
+                                SYS_MOUNT_ROOT,
+                                urldecode(newname->txt, url, sizeof(url)));
                 if(rename(path, newpath) < 0) {
                         return response_state(client, errno, strerror(errno));
                 }
         } else {
-                return response_state(client, NO_SUPPORT_OPERATE, err_msg[NO_SUPPORT_OPERATE]);
+                return response_state(client,
+                                NO_SUPPORT_OPERATE,
+                                err_msg[NO_SUPPORT_OPERATE]
+                                );
         }
 
         return 0;
@@ -144,34 +172,34 @@ int post_directory_server(int client, char *ibuf, int length, char *subtork)
 
 static int get_dev_space(char *used, char *freed)
 {
-	FILE *fp = NULL;
+        FILE *fp = NULL;
 
-	fp = popen("/bin/df -h", "r");
-	if(!fp){
-		return 1;
-	}
+        fp = popen("/bin/df -h", "r");
+        if(!fp){
+                return 1;
+        }
 
-	char line[256]={0}, tmp[128]={0}, *ptr=NULL;
+        char line[256]={0}, tmp[128]={0}, *ptr=NULL;
 
-	while(fgets(line, sizeof(line), fp)){
-		ptr = strstr(line, "/media");
-		if(!ptr) continue;
+        while(fgets(line, sizeof(line), fp)){
+                ptr = strstr(line, "/media");
+                if(!ptr) continue;
 
-		sscanf(line, "%s %s %s %s", tmp, tmp, used, freed);
-		break;
-	}
-	pclose(fp);
-	return 0;
+                sscanf(line, "%s %s %s %s", tmp, tmp, used, freed);
+                break;
+        }
+        pclose(fp);
+        return 0;
 }
 
 int get_directory_server(int client, char *ibuf, int length, char *torken)
 {
-	static char *xmlhead = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+        static char *xmlhead = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
                                "<DIRECTORY>"
-			       "<SPACE>"
-			       		"<FREE>%s</FREE>"
-					"<USED>%s</USED>"
-			       "</SPACE>";
+                               "<SPACE>"
+                                        "<FREE>%s</FREE>"
+                                        "<USED>%s</USED>"
+                               "</SPACE>";
 
         char path[PATH_MAX];
         DIR *dir = NULL;
@@ -194,17 +222,20 @@ int get_directory_server(int client, char *ibuf, int length, char *torken)
                 return response_state(client, errno, strerror(errno));
         }
 
-	get_dev_space(used, freed);
+        get_dev_space(used, freed);
 
         pos += snprintf(xml+pos, sizeof(xml), xmlhead, freed, used);
         while((it=readdir(dir))) {
                 if(DT_DIR == it->d_type) {
-                        if(!strcmp(".", it->d_name) || !strcmp("..", it->d_name)) {
+                        if(!strcmp(".", it->d_name) ||
+                                        !strcmp("..", it->d_name)) {
                                 continue;
                         }
-                        len = snprintf(xml+pos, sizeof(xml), "<DIR>%s</DIR>", it->d_name);
+                        len = snprintf(xml+pos, sizeof(xml), "<DIR>%s</DIR>",
+                                        it->d_name);
                 } else if(DT_REG == it->d_type) {
-                        len = snprintf(xml+pos, sizeof(xml), "<FILE>%s</FILE>", it->d_name);
+                        len = snprintf(xml+pos, sizeof(xml), "<FILE>%s</FILE>",
+                                        it->d_name);
                 } else {
                         continue;
                 }

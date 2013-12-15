@@ -30,9 +30,9 @@
 #include "ezxml.h"
 static int get_dhcp_clients(int client)
 {
-	char xml[1024] ="<?xml version=\"1.0\" encoding=\"utf-8\"?>""<DHCP>";     //"</DHCP>";
+	char xml[1024] ="<?xml version=\"1.0\" encoding=\"utf-8\"?>""<DHCP>";
 
-	char *cfmt = 	"<CLIENTS>"
+	char *cfmt =	"<CLIENTS>"
 				"<MAC>%s</MAC>"
 				"<IP>%s</IP>"
 				"<HOSTNAME>%s</HOSTNAME>"
@@ -44,13 +44,19 @@ static int get_dhcp_clients(int client)
 		return response_state(client, SYS_ERR, strerror(errno));
 	}
 
-	char line[256] = {0}, ip[INET_ADDRSTRLEN]={0}, mac[32]={0}, name[128]={0};
+	char line[256] = {0}, ip[INET_ADDRSTRLEN]={0},\
+             mac[32]={0}, name[128]={0};
 	time_t time, len=0, pos=0;
 
 	pos = strlen(xml);
 	while(fgets(line, sizeof(line), fp)){
 		sscanf(line, "%d %s %s %s", (int*)&time, mac, ip, name);
-		len = snprintf(xml+pos, sizeof(xml)-pos, cfmt, mac, ip, name, ctime(&time));
+		len = snprintf(xml+pos, sizeof(xml)-pos, cfmt,
+                                mac,
+                                ip,
+                                name,
+                                ctime(&time)
+                                );
 		pos += len;
 	}
 	strcat(xml, "</DHCP>");
@@ -63,7 +69,7 @@ static int get_dhcp_config(int client)
 {
 	char *dfmt = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
 		     "<DHCP>"
-		     	"<ENABLED>%d</ENABLED>"
+			"<ENABLED>%d</ENABLED>"
 			"%s"
 			"%s"
 		     "</DHCP>";
@@ -75,7 +81,7 @@ static int get_dhcp_config(int client)
 
 	char *lfmt = "<LEASETIME>%d</LEASETIME>"
 		     "<ADDRPOOL>"
-		     	"<START>%s</START>"
+			"<START>%s</START>"
 			"<END>%s</END>"
 		     "</ADDRPOOL>";
 
@@ -178,7 +184,7 @@ static int check_addrpool(ezxml_t pool)
 {
 	char ip[INET_ADDRSTRLEN+1]={0}, netmask[INET_ADDRSTRLEN+1]={0};
 	int nip=0, nmask=0, nstart=0, nend=0;
-	
+
 	ezxml_t start=ezxml_child(pool, "START");
 	ezxml_t end = ezxml_child(pool, "END");
 
@@ -189,7 +195,7 @@ static int check_addrpool(ezxml_t pool)
 	if(!start && !end){
 		return 0;
 	}
-	
+
 	inet_pton(AF_INET, start->txt, &nstart);
 	inet_pton(AF_INET, end->txt, &nend);
 	nstart = ntohl(nstart);
@@ -261,7 +267,7 @@ int post_dhcp_server(int client, char *ibuf, int len, char *torken)
 			ezxml_free(root);
 			return response_state(client, FORMAT_ERR, "Invalid ENABLE arg");
 		}
-	
+
 		int ienabled = atoi(enabled->txt);
 		if((ienabled!=0) && (ienabled !=1)){
 			ezxml_free(root);
@@ -335,6 +341,6 @@ int post_dhcp_server(int client, char *ibuf, int len, char *torken)
 		system("/sbin/uci commit");
 		system("/etc/init.d/network restart");
 	}
-	
+
 	return 0;
 }

@@ -36,12 +36,14 @@ struct fd_state* alloc_fd_state(struct event_base *base, evutil_socket_t fd) {
         struct fd_state *state = malloc(sizeof(struct fd_state));
         if (!state)
                 return NULL;
-        state->read_event = event_new(base, fd, EV_READ|EV_PERSIST, do_read, state);
+        state->read_event = event_new(base, fd, EV_READ|EV_PERSIST,
+                        do_read, state
+                        );
         if (!state->read_event) {
                 free(state);
                 return NULL;
         }
-	/*
+        /*
         state->write_event =
                 event_new(base, fd, EV_WRITE|EV_PERSIST, do_write, state);
 
@@ -50,7 +52,7 @@ struct fd_state* alloc_fd_state(struct event_base *base, evutil_socket_t fd) {
                 free(state);
                 return NULL;
         }
-	*/
+        */
 
         state->buffer_used = state->n_written = state->write_upto = 0;
 
@@ -71,7 +73,10 @@ void do_read(evutil_socket_t fd, short events, void *arg)
         int i;
         ssize_t result;
         while (1) {
-                result = recv(fd, state->buffer+state->buffer_used, sizeof(state->buffer)-state->buffer_used, 0);
+                result = recv(fd, state->buffer+state->buffer_used,
+                                sizeof(state->buffer)-state->buffer_used,
+                                0
+                                );
                 if(result <= 0)
                         break;
                 state->buffer_used += result;
@@ -79,11 +84,11 @@ void do_read(evutil_socket_t fd, short events, void *arg)
                 if(('\n'==state->buffer[i-1]) &&
                     ('\n'==state->buffer[i-2])) {
                         route_server(fd, state->buffer, i-2);
-			fprintf(stderr, "close client\n");
-			//close(fd);
-			shutdown(fd, SHUT_RDWR);
-			close(fd);
-			//evutil_closesocket(fd);
+                        fprintf(stderr, "close client\n");
+                        //close(fd);
+                        shutdown(fd, SHUT_RDWR);
+                        close(fd);
+                        //evutil_closesocket(fd);
                         free_fd_state(state);
                         return;
                 }
@@ -159,12 +164,12 @@ void run(void)
         bzero(&sin, sizeof(sin));
         sin.sun_family = AF_UNIX;
         strcpy(sin.sun_path, "/tmp/route");
-	len = offsetof(struct sockaddr_un, sun_path) + strlen("/tmp/route");
+        len = offsetof(struct sockaddr_un, sun_path) + strlen("/tmp/route");
         unlink("/tmp/route");
 
         listener = socket(AF_UNIX, SOCK_STREAM, 0);
         evutil_make_socket_nonblocking(listener);
-	evutil_make_socket_closeonexec(listener);
+        evutil_make_socket_closeonexec(listener);
         setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 
         if (bind(listener, (struct sockaddr*)&sin, len) < 0) {
@@ -177,7 +182,8 @@ void run(void)
                 return;
         }
 
-        listener_event = event_new(base, listener, EV_READ|EV_PERSIST, do_accept, (void*)base);
+        listener_event = event_new(base, listener,
+                        EV_READ|EV_PERSIST, do_accept, (void*)base);
         /*XXX check it */
         event_add(listener_event, NULL);
 
