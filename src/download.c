@@ -22,8 +22,8 @@ static int download_task(int client, ezxml_t param)
                              "<RESP>%s</RESP>"
                      "</DOWNLOAD>";
 
-        char *pdata=0;
-        char xml[XMLLEN] = {0}, obuf[XMLLEN]={0}, *resp=0;
+        char *pdata=0, *resp=0;
+        char xml[XMLLEN] = {0}, obuf[XMLLEN]={0};
         size_t len = 0;
         int ret=0;
 
@@ -34,8 +34,9 @@ static int download_task(int client, ezxml_t param)
                         );
 
         if(ret != 0){
-                return response_state(client, NO_SERVICE, err_msg[NO_SERVICE]);
+                return response_state(client, SYS_ERR, strerror(errno));
         }
+        free(pdata);
 
         Base64Encode((uint8_t*)obuf, strlen(obuf), &resp);
         snprintf(xml, sizeof(xml), dfmt, resp);
