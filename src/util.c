@@ -300,8 +300,7 @@ int post_request(const char *url, const char *data, char *obuf)
 
 
         res = curl_easy_perform(curl);
-        if(CURLE_OK != res)
-        {
+        if(CURLE_OK != res){
             return 1;
         }
         curl_easy_cleanup(curl);
