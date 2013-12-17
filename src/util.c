@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
-#include <net/if.h> 
+#include <net/if.h>
 #include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <ctype.h>
 #include <arpa/inet.h>
+#include <curl/curl.h>
 #include "util.h"
 
 int cov2xml(char *dst, const char *src, int len)
@@ -277,3 +278,34 @@ int write_to_server(int client, char *xml, int len)
         return n_write;
 }
 
+static size_t wcallback( char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+        memcpy(userdata, ptr, size*nmemb);
+        ((char*)userdata)[size*nmemb] = 0;
+        return size*nmemb;
+}
+
+int post_request(const char *url, const char *data, char *obuf)
+{
+    CURL *curl;
+    CURLcode res;
+
+    curl = curl_easy_init();
+    if(curl){
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wcallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, obuf);
+
+
+        res = curl_easy_perform(curl);
+        if(CURLE_OK != res)
+        {
+            return 1;
+        }
+        curl_easy_cleanup(curl);
+    }
+
+    return 0;
+}

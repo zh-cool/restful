@@ -1,6 +1,7 @@
 #ifndef _UTIL_H_
 #define _UTIL_H_
 
+#include <stdint.h>
 int cov2xml(char *dst, const char *src, int len);
 char* get_wan_ip(char *ip, int len);
 char* get_wan_dns(char *dns, int len);
@@ -11,6 +12,7 @@ char* uci_get_cfg(const char *cfg, char *buf, int len);
 int uci_set_cfg(const char *csp, const char *value);
 int uci_commit_change();
 int write_to_server(int client, char *xml, int len);
+int post_request(const char *url, const char *data, char *obuf);
 
 struct if_cfg{
 	char	mac[32];

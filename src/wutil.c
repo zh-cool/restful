@@ -185,6 +185,7 @@ char* format_enc_suites(int suites)
 char* format_encryption(struct iwinfo_crypto_entry *c)
 {
         static char buf[512];
+        static char sec[512];
 
         if (!c){
                 snprintf(buf, sizeof(buf), "unknown");
@@ -196,16 +197,22 @@ char* format_encryption(struct iwinfo_crypto_entry *c)
                         {
                                 snprintf(buf, sizeof(buf), "WEP Open/Shared (%s)",
                                         format_enc_ciphers(c->pair_ciphers));
+
+                                snprintf(sec, sizeof(sec), "wep-shared");
                         }
                         else if (c->auth_algs & IWINFO_AUTH_OPEN)
                         {
                                 snprintf(buf, sizeof(buf), "WEP Open System (%s)",
                                         format_enc_ciphers(c->pair_ciphers));
+
+                                snprintf(sec, sizeof(sec), "wep-open");
                         }
                         else if (c->auth_algs & IWINFO_AUTH_SHARED)
                         {
                                 snprintf(buf, sizeof(buf), "WEP Shared Auth (%s)",
                                         format_enc_ciphers(c->pair_ciphers));
+
+                                snprintf(sec, sizeof(sec), "wep-shared");
                         }
                 }
 
@@ -218,6 +225,8 @@ char* format_encryption(struct iwinfo_crypto_entry *c)
                                          format_enc_ciphers(c->pair_ciphers |
                                                  c->group_ciphers)
                                          );
+
+                                snprintf(sec, sizeof(sec), "psk-mixed");
                                 break;
 
                         case 2:
@@ -226,6 +235,7 @@ char* format_encryption(struct iwinfo_crypto_entry *c)
                                          format_enc_ciphers(c->pair_ciphers |
                                                  c->group_ciphers)
                                          );
+                                snprintf(sec, sizeof(sec), "psk2");
                                 break;
 
                         case 1:
@@ -234,16 +244,19 @@ char* format_encryption(struct iwinfo_crypto_entry *c)
                                          format_enc_ciphers(c->pair_ciphers |
                                                  c->group_ciphers)
                                          );
+                                snprintf(sec, sizeof(sec), "psk");
                                 break;
                         }
                 }else{
                         snprintf(buf, sizeof(buf), "none");
+                        snprintf(sec, sizeof(sec), "none");
                 }
         }
         else{
                 snprintf(buf, sizeof(buf), "none");
+                snprintf(sec, sizeof(sec), "none");
         }
 
-        return buf;
+        return sec;
 }
 

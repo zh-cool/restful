@@ -12,7 +12,7 @@ PKG_NAME:=restful
 PKG_RELEASE:=1.0
 
 define Package/restful
-  DEPENDS:= +libevent2 +libiwinfo
+  DEPENDS:= +libevent2 +libiwinfo +libopenssl +libcurl
   SECTION:=utils
   CATEGORY:=Base system
   TITLE:=Support route restful api

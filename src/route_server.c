@@ -42,6 +42,7 @@ struct rest_service post_rest_service[] = {
         {"system",      post_system_server},
         {"upnp",        post_upnp_server},
         {"wclient",     post_wclient_server},
+        {"download",    post_download_server},
         {NULL,          NULL}
 };
 
