@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <stddef.h>
 #include "ezxml.h"
+#include "encry.h"
 
 #define GATEWAY_SERVER_PATH     "/tmp/gateway"
 #define ROUTE_SERVER_PATH       "/tmp/route"
@@ -105,38 +106,6 @@ int IPC_SendMsg(const char *ibuf, char *obuf, int length, char *spath)
         close(fd);
         unlink(un.sun_path);
         return 0;
-}
-
-static int encpry(char *ibuf, int len)
-{
-        struct sys_key *skey = get_shm();
-        AES_KEY enc_key;
-
-        const size_t encslength = ((inputslength + AES_BLOCK_SIZE) /
-                        AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
-        unsigned char enc_out[encslength]={0};
-
-        AES_set_encrypt_key(skey->key, KEYLEN, &enc_key);
-        AES_cbc_encrypt(ibuf, enc_out, len, &enc_key, skey->iv_enc,
-                        AES_ENCRYPT);
-
-        memcpy(ibuf, enc_out, encslength);
-        ibuf[encslength] = 0;
-        return 0;
-}
-
-static int decpry(char *ibuf, int len)
-{
-        struct sys_key *skey = get_shm();
-        AES_KEY dec_key;
-        unsigned char dec_out[len]={0};
-
-        AES_set_encrypt_key(skey->key, KEYLEN, &dec_key);
-        AES_cbc_encrypt(ibuf, dec_out, len, &enc_key, skey->iv_dec,
-                                                AES_DECRYPT);
-
-
-
 }
 
 int main(int argc, char **argv)

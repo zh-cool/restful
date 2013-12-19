@@ -102,14 +102,14 @@ static int get_wireless_txpower(int client)
 
         int len, pwr, off, i, k, pos, wlen;
         char buf[IWINFO_BUFSIZE];
-        struct iwinfo_txpwrlist_entry *e;
 
         char xml[XMLLEN*4] = {0};
         char txpower[2][XMLLEN*2] = {{0}, {0}};
         char cur_txpower[2][128] = {{0}, {0}};
         char level[2][128] = {{0}, {0}};
         int  ilevel = 0;
-        const struct iwinfo_ops *iw;
+        const struct iwinfo_ops *iw=NULL;
+        struct iwinfo_txpwrlist_entry *e=NULL;
 
         for(k=0; k<2; k++){
                 iw = iwinfo_backend(ifname[k]);
@@ -123,8 +123,6 @@ static int get_wireless_txpower(int client)
 
                 if (iw->txpower(ifname[k], &pwr))
                         pwr = -1;
-
-                printf("Wireless txpower %d %s", pwr, strerror(errno));
 
                 if (iw->txpower_offset(ifname[k], &off))
                         off = 0;
@@ -149,7 +147,8 @@ static int get_wireless_txpower(int client)
                         }
                         pos += wlen;
                 }
-                double flevel = (double)ilevel/i;
+                double flevel = (double)ilevel/
+                        (i-sizeof(struct iwinfo_txpwrlist_entry));
                 if(flevel<0.25){
                         strcpy(level[k], "low");
                 }else if(flevel < 0.5){
@@ -737,9 +736,100 @@ static int set_advance_arg(ezxml_t advance, int BG)
         return 0;
 }
 
+static int set_wireless_txpower(int client, char *inbuf, int len)
+{
+        int BG=0;
+        char *ifname[] = {"wlan0", "wlan1"};
+        ezxml_t root=NULL, inface=NULL;
+        root = ezxml_parse_str(inbuf, len);
+        if(!root){
+                ezxml_free(root);
+                return response_state(client, FORMAT_ERR, err_msg[FORMAT_ERR]);
+        }
+        if(root && *ezxml_error(root)) {
+                ezxml_free(root);
+                return response_state(client, FORMAT_ERR, err_msg[FORMAT_ERR]);
+        }
+
+        if(NULL == (inface=ezxml_child(root, "INTERFACE"))){
+                ezxml_free(root);
+                return response_state(client, FORMAT_ERR, err_msg[FORMAT_ERR]);
+        }
+
+        const struct iwinfo_ops *iw=NULL;
+        struct iwinfo_txpwrlist_entry *e=NULL;
+        char buf[IWINFO_BUFSIZE];
+
+        for(; inface; inface=inface->next){
+                ezxml_t band=NULL, level=NULL;
+                int dbm[128] = {0}, i=0, k=0;
+                double oct=0;
+
+                band = ezxml_child(inface, "BAND");
+                level = ezxml_child(inface, "LEVEL");
+                if(!band || !level){
+                        return response_state(client, FORMAT_ERR,
+                                        "Need band and level"
+                                        );
+                }
+
+                if(!strcmp(band->txt, "2G")){
+                        BG=0;
+                }else if(!strcmp(band->txt, "5G")){
+                        BG=1;
+                }else{
+                        return response_state(client, FORMAT_ERR,
+                                        "Unkonw BAND"
+                                        );
+                }
+
+                if(!strcmp(level->txt, "low")){
+                        oct = 0.25;
+                }else if(!strcmp(level->txt, "mid")){
+                        oct = 0.5;
+                }else if(!strcmp(level->txt, "high")){
+                        oct = 0.75;
+                }else if(!strcmp(level->txt, "super")){
+                        oct = 1;
+                }else{
+                        return response_state(client, FORMAT_ERR,
+                                        "Unknow TXPOWER LEVEL"
+                                        );
+                }
+
+                iw = iwinfo_backend(ifname[BG]);
+                if (!iw){
+                        continue;
+                }
+
+                if (iw->txpwrlist(ifname[BG], buf, &len) || len <= 0){
+                        continue;
+                }
+
+                k = 0;
+                for (i = 0; i < len; i+=sizeof(struct iwinfo_txpwrlist_entry)){
+                        e = (struct iwinfo_txpwrlist_entry *) &buf[i];
+                        dbm[k++] = e->dbm;
+                }
+                k--;
+                k=(int)(k*oct);
+                char power[16];
+                sprintf(power, "%d", dbm[k]);
+                uci_set_cfg(RADIO(BG, txpower), power);
+        }
+
+        uci_commit_change("wireless");
+        system("/sbin/wifi restart");
+        return 0;
+}
+
 int post_wireless_server(int client, char *inbuf, int len, char *subtok)
 {
         int BG=0;
+
+        if(!strncmp(subtok, "/txpower", inbuf-subtok)){
+                return set_wireless_txpower(client, inbuf, len);
+        }
 
         if(strncmp(subtok, "/config", inbuf-subtok)){
                 return response_state(client, NO_SERVICE, err_msg[NO_SERVICE]);

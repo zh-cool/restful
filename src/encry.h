@@ -7,11 +7,11 @@
 #define KEYLEN          16
 #define SYSKEY          3134
 struct sys_key{
-        unsigned char *key[KEYLEN];
-        unsigned char *iv_enc[AES_BLOCK_SIZE];
-        unsigned char *iv_dec[AES_BLOCK_SIZE];
+        unsigned char key[KEYLEN];
+        unsigned char iv_enc[AES_BLOCK_SIZE];
+        unsigned char iv_dec[AES_BLOCK_SIZE];
 };
 
 int init_shm();
-
+void* get_shm();
 #endif
