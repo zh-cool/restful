@@ -87,10 +87,14 @@ static int get_wireless_txpower(int client)
                         "<WIRELESS>"
                                 "<INTERFACE>"
                                         "<BAND>2G</BAND>"
+                                        "<CUR_TXPOWER>%s</CUR_TXPOWER>"
+                                        "<LEVEL>%s</LEVEL>"
                                         "%s"
                                 "</INTERFACE>"
                                 "<INTERFACE>"
                                         "<BAND>5G</BAND>"
+                                        "<CUR_TXPOWER>%s</CUR_TXPOWER>"
+                                        "<LEVEL>%s</LEVEL>"
                                         "%s"
                                 "</INTERFACE>"
                         "</WIRELESS>";
@@ -102,6 +106,9 @@ static int get_wireless_txpower(int client)
 
         char xml[XMLLEN*4] = {0};
         char txpower[2][XMLLEN*2] = {{0}, {0}};
+        char cur_txpower[2][128] = {{0}, {0}};
+        char level[2][128] = {{0}, {0}};
+        int  ilevel = 0;
         const struct iwinfo_ops *iw;
 
         for(k=0; k<2; k++){
@@ -131,11 +138,32 @@ static int get_wireless_txpower(int client)
                                         (pwr == e->dbm) ? "*" : " ",
                                         e->dbm + off,
                                         iwinfo_dbm2mw(e->dbm + off));
+
+                        if(pwr == e->dbm){
+                                snprintf(cur_txpower[k], sizeof(cur_txpower[k]),
+                                                "%s%3d dBm (%4d mW)",
+                                                (pwr == e->dbm) ? "*" : " ",
+                                                e->dbm + off,
+                                                iwinfo_dbm2mw(e->dbm + off));
+                                ilevel = i;
+                        }
                         pos += wlen;
+                }
+                double flevel = (double)ilevel/i;
+                if(flevel<0.25){
+                        strcpy(level[k], "low");
+                }else if(flevel < 0.5){
+                        strcpy(level[k], "mid");
+                }else if(flevel < 0.75){
+                        strcpy(level[k], "high");
+                }else{
+                        strcpy(level[k], "super");
                 }
         }
 
-        snprintf(xml, sizeof(xml), cfmt, txpower[0], txpower[1]);
+        snprintf(xml, sizeof(xml), cfmt,
+                        cur_txpower[0], level[0], txpower[0],
+                        cur_txpower[1], level[1], txpower[1]);
         write(client, xml, strlen(xml));
         return 0;
 }

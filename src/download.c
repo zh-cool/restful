@@ -23,7 +23,7 @@ static int download_task(int client, ezxml_t param)
                      "</DOWNLOAD>";
 
         char *pdata=0, *resp=0;
-        char xml[XMLLEN] = {0}, obuf[XMLLEN]={0};
+        char xml[XMLLEN*4] = {0}, obuf[XMLLEN*4]={0};
         size_t len = 0;
         int ret=0;
 
@@ -41,7 +41,7 @@ static int download_task(int client, ezxml_t param)
         Base64Encode((uint8_t*)obuf, strlen(obuf), &resp);
         snprintf(xml, sizeof(xml), dfmt, resp);
 
-        write_to_server(client, xml, sizeof(xml));
+        write_to_server(client, xml, strlen(xml));
         return 1;
 }
 

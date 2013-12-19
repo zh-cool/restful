@@ -43,6 +43,8 @@ struct rest_service post_rest_service[] = {
         {"upnp",        post_upnp_server},
         {"wclient",     post_wclient_server},
         {"download",    post_download_server},
+        {"login",       post_login_server},
+        {"passwd",      post_passwd_server},
         {NULL,          NULL}
 };
 

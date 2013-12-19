@@ -192,6 +192,7 @@ void run(void)
 
 int main(int argc, char **argv)
 {
+        init_shm();
         setvbuf(stdout, NULL, _IONBF, 0);
 
         run();

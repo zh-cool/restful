@@ -33,4 +33,8 @@ int post_wclient_server(int client, char *ibuf, int len, char *torken);
 
 int post_download_server(int client, char *ibuf, int len, char *torken);
 
+int post_login_server(int client, char *ibuf, int len, char *torken);
+
+int post_passwd_server(int client, char *ibuf, int len, char *torken);
+
 #endif
