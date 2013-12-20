@@ -27,7 +27,7 @@ int encpry(char *ibuf, int len)
 
         memcpy(ibuf, enc_out, encslength);
         ibuf[encslength] = 0;
-        return 0;
+        return encslength;
 }
 
 int decpry(char *ibuf, int len)
@@ -46,8 +46,7 @@ int decpry(char *ibuf, int len)
 }
 
 
-int create_keyfile(const uint8_t *key, const uint8_t *iv_enc, const
-                uint8_t *iv_dec)
+int create_keyfile(const unsigned char *key)
 {
         int fd = 0;
         unsigned char md[512];
@@ -56,14 +55,11 @@ int create_keyfile(const uint8_t *key, const uint8_t *iv_enc, const
         }
 
         struct sys_key aeskey;
-        MD5(key, strlen(key), md);
+        SHA256(key, strlen(key), md);
         memcpy(aeskey.key, md, KEYLEN);
 
-        MD5(iv_enc, strlen((const char*)iv_enc), md);
-        memcpy(aeskey.iv_enc, md, AES_BLOCK_SIZE);
-
-        MD5(iv_dec, strlen((const char*)iv_dec), md);
-        memcpy(aeskey.iv_dec, md, AES_BLOCK_SIZE);
+        memcpy(aeskey.iv_enc, md+KEYLEN, AES_BLOCK_SIZE);
+        memcpy(aeskey.iv_dec, md+KEYLEN, AES_BLOCK_SIZE);
 
         write(fd, &aeskey, sizeof(aeskey));
         close(fd);
@@ -75,7 +71,7 @@ int init_shm()
         int fd = 0;
         if(access(KEYFILE, F_OK) < 0){
                 if(errno == ENOENT){
-                        create_keyfile("111111", "root", "root");
+                        create_keyfile("111111");
                 }
         }
 

@@ -3,6 +3,7 @@
 #include <openssl/aes.h>
 #include <openssl/md5.h>
 #include <openssl/rand.h>
+#include <openssl/sha.h>
 
 #define KEYLEN          16
 #define SYSKEY          3134
@@ -14,4 +15,6 @@ struct sys_key{
 
 int init_shm();
 void* get_shm();
+int encpry(char *ibuf, int len);
+int decpry(char *ibuf, int len);
 #endif
