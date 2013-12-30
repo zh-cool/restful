@@ -37,4 +37,7 @@ int post_login_server(int client, char *ibuf, int len, char *torken);
 
 int post_passwd_server(int client, char *ibuf, int len, char *torken);
 
+int get_parent_ctr_server(int client, char *ibuf, int len, char *subtok);
+int post_parent_ctr_server(int client, char *ibuf, int len, char *subtok);
+
 #endif

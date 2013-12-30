@@ -29,6 +29,7 @@ struct rest_service get_rest_service[] = {
         {"system",      get_system_server},
         {"upnp",        get_upnp_server},
         {"wclient",     get_wclient_server},
+        {"parentctr", get_parent_ctr_server},
         {NULL,          NULL}
 };
 
@@ -45,6 +46,7 @@ struct rest_service post_rest_service[] = {
         {"download",    post_download_server},
         {"login",       post_login_server},
         {"passwd",      post_passwd_server},
+        {"parentctr", post_parent_ctr_server},
         {NULL,          NULL}
 };
 
