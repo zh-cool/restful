@@ -14,15 +14,17 @@
 
 int encpry(char *ibuf, int len)
 {
-        struct sys_key *skey = get_shm();
+        struct sys_key *pskey = get_shm();
+        struct sys_key skey;
+        memcpy(&skey, pskey, sizeof(struct sys_key));
         AES_KEY enc_key;
 
         const size_t encslength = len%AES_BLOCK_SIZE?
                 (len/AES_BLOCK_SIZE+1) * AES_BLOCK_SIZE: len;
-        unsigned char enc_out[encslength];
+        unsigned char enc_out[encslength+1];
 
-        AES_set_encrypt_key(skey->key, KEYLEN*8, &enc_key);
-        AES_cbc_encrypt(ibuf, enc_out, len, &enc_key, skey->iv_enc,
+        AES_set_encrypt_key(skey.key, KEYLEN*8, &enc_key);
+        AES_cbc_encrypt(ibuf, enc_out, len, &enc_key, skey.iv_enc,
                         AES_ENCRYPT);
 
         memcpy(ibuf, enc_out, encslength);
@@ -32,13 +34,15 @@ int encpry(char *ibuf, int len)
 
 int decpry(char *ibuf, int len)
 {
-        struct sys_key *skey = get_shm();
+        struct sys_key *pskey = get_shm();
+        struct sys_key skey;
+        memcpy(&skey, pskey, sizeof(struct sys_key));
         AES_KEY dec_key;
         unsigned char dec_out[len];
         memset(dec_out, 0, len);
 
-        AES_set_decrypt_key(skey->key, KEYLEN*8, &dec_key);
-        AES_cbc_encrypt(ibuf, dec_out, len, &dec_key, skey->iv_dec,
+        AES_set_decrypt_key(skey.key, KEYLEN*8, &dec_key);
+        AES_cbc_encrypt(ibuf, dec_out, len, &dec_key, skey.iv_dec,
                                                 AES_DECRYPT);
 
         memcpy(ibuf, dec_out, len);

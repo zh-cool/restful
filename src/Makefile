@@ -11,8 +11,8 @@ obj = server.o directory.o network.o  ezxml.o route_server.o\
       dhcp.o log.o time.o system.o upnp.o wclient.o download.o\
       base64.o encry.o login.o passwd.o
 
-cgi.cgi:cgi.o ezxml.o
-	$(CC) -o $@ $^ 
+cgi.cgi:cgi.o ezxml.o encry.o base64.o
+	$(CC) -o $@ $^  -lcrypto
 server: $(obj)
 	$(CC) -o $@ $(obj) $(LDFLAGS)
 clean:
