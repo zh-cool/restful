@@ -13,6 +13,7 @@
 #include <stddef.h>
 #include "ezxml.h"
 #include "encry.h"
+#include "base64.h"
 
 #define GATEWAY_SERVER_PATH     "/tmp/gateway"
 #define ROUTE_SERVER_PATH       "/tmp/route"
@@ -108,6 +109,20 @@ int IPC_SendMsg(const char *ibuf, char *obuf, int length, char *spath)
         return 0;
 }
 
+static void hex_print(const void* pv, size_t len)
+{
+        const unsigned char * p = (const unsigned char*)pv;
+        if (NULL == pv)
+                fprintf(fp, "NULL");
+        else
+        {
+                size_t i=0;
+                for(; i<len;++i)
+                        fprintf(fp, "%02X ", *p++);
+        }
+        fprintf(fp, "\n");
+}
+
 int main(int argc, char **argv)
 {
         char *method=NULL, *qstr=NULL, *length=NULL, *ptr=NULL;
@@ -117,7 +132,11 @@ int main(int argc, char **argv)
 
         fp = fopen("logg", "w");
         system("env > log");
-        printf("Content-type:application/xml\n\n");
+#ifdef ENCRPTY
+        printf("Content-type: multipart/form-data\n\n");
+#else
+        printf("Content-type: text/xml\n\n");
+#endif
 
         method = getenv("REQUEST_METHOD");
         if(method && !strcmp(method, "POST")){
@@ -140,6 +159,18 @@ int main(int argc, char **argv)
                 }
 
                 len = read(0, outbuf, sizeof(outbuf));
+                fprintf(fp, "recv:%s\n", outbuf);
+#ifdef ENCRPTY
+                char *decmsg = 0;
+                Base64Decode(outbuf, &decmsg, &len);
+                memcpy(outbuf, decmsg, len);
+                decpry(outbuf, len);
+                outbuf[len]=0;
+#endif
+
+                len = strlen(outbuf);
+                fprintf(fp, "desc:%s\n", outbuf);
+
                 xml = ezxml_parse_str(outbuf, len);
 
                 if(!xml || *ezxml_error(xml)){
@@ -174,7 +205,15 @@ int main(int argc, char **argv)
                 }
 
                 if((ret=IPC_SendMsg(outbuf, outbuf, sizeof(outbuf), saddr))==0){
+                        fprintf(fp, "send:\nlen:%d %s", strlen(outbuf), outbuf);
+#ifdef ENCRPTY
+                        len = encpry(outbuf, strlen(outbuf));
+                        char *encmsg = 0;
+                        Base64Encode(outbuf, len, &encmsg);
+                        printf("%s", encmsg);
+#else
                         printf("%s", outbuf);
+#endif
                 }else{
                         response_state(ret);
                 }
@@ -199,7 +238,13 @@ int main(int argc, char **argv)
                 if((ret=IPC_SendMsg(inbuf, outbuf, sizeof(outbuf), saddr))){
                         response_state(ret);
                 }else{
+#ifdef ENCRPTY
+                        len = encpry(outbuf, strlen(outbuf));
+                        write(1, outbuf, len);
+                        //printf("%s", outbuf);
+#else
                         printf("%s", outbuf);
+#endif
                         fprintf(fp, "recive:%s\n", outbuf);
                 }
         }else{

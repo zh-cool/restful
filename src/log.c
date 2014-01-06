@@ -43,6 +43,7 @@ static int get_sys_log(int client)
                 len = cov2xml(xml+pos, line, strlen(line));
                 pos += len;
         }
+        pclose(fp);
         strcat(xml, "</MSG></LOG>");
 
         write(client, xml, strlen(xml));
@@ -67,6 +68,7 @@ static int get_kernel_log(int client)
                 len = cov2xml(xml+pos, line, strlen(line));
                 pos += len;
         }
+        pclose(fp);
         strcat(xml, "</MSG></LOG>");
 
         write(client, xml, strlen(xml));

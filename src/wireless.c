@@ -823,17 +823,9 @@ static int set_wireless_txpower(int client, char *inbuf, int len)
         return 0;
 }
 
-int post_wireless_server(int client, char *inbuf, int len, char *subtok)
+static int set_wireless_config(int client, char *inbuf, int len)
 {
         int BG=0;
-
-        if(!strncmp(subtok, "/txpower", inbuf-subtok)){
-                return set_wireless_txpower(client, inbuf, len);
-        }
-
-        if(strncmp(subtok, "/config", inbuf-subtok)){
-                return response_state(client, NO_SERVICE, err_msg[NO_SERVICE]);
-        }
 
         ezxml_t root = NULL, config=NULL;
 
@@ -900,5 +892,18 @@ int post_wireless_server(int client, char *inbuf, int len, char *subtok)
 
         uci_commit_change("wireless");
         system("/sbin/wifi restart");
-        return 0;
+        return 0; 
+}
+
+int post_wireless_server(int client, char *inbuf, int len, char *subtok)
+{
+        if(subtok && !strncmp(subtok, "/txpower", inbuf-subtok)){
+                return set_wireless_txpower(client, inbuf, len);
+        }
+
+        if(subtok && !strncmp(subtok, "/config", inbuf-subtok)){
+                return set_wireless_config(client, inbuf, len);
+        }
+
+        return response_state(client, NO_SERVICE, err_msg[NO_SERVICE]);
 }

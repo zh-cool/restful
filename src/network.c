@@ -54,6 +54,7 @@ static int get_port_status(char *port, int len)
                 cnt = snprintf(port+pos, len-pos, pfmt, atoi(ptr), status);
                 pos += cnt;
         }
+        pclose(fp);
         return 0;
 }
 
